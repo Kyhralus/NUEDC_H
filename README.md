@@ -17,6 +17,8 @@ colcon build --packages-select <package name> --symlink-install   # 不能同时
 # 删除编译文件
 rm -rf build install log
 
+# 查看视频设备
+ls /dev/video*
 # git 取消代理
 # 取消 HTTP 代理设置
 git config --global --unset http.proxy
@@ -52,7 +54,7 @@ ros2 run automatic_aiming laser_detect
 ## 日志配置说明
 为了确保节点内部的日志信息正确保存，需要设置以下环境变量：
 
-```bash
+```bash`
 # 设置日志级别为DEBUG以显示更多信息
 export RCUTILS_LOGGING_SEVERITY=DEBUG
 export RCUTILS_LOGGING_USE_STDOUT=1
@@ -106,7 +108,7 @@ ros2 launch automatic_aiming full_system.launch.py --log-level debug 2>&1 | tee 
         # 4. 将 target_circle 画到 roi_region 上，并画出圆形，显示帧率，并用另一种颜色 画出visual_target_point
     '''
 
-
+这个帧率的计算逻辑有问题，同时给我加个标志来管理激光的寻找，默认关闭，现在也关闭。在最终图像中显示出图像的中心，并显示target_center和图像中心的偏差值。另外裁剪图像改成1290X720，找到矩形后则变成矩形向外扩30像素，没找到就还是1280X720。
 
 
 
@@ -141,3 +143,10 @@ Note:
 
 [X] GUI界面节点
     用 pytk 写一个简易调参界面，完成对阈值的调整，任务的选择，任务结果的显示
+
+@TODO
+ekf_
+依旧不会显示画面，继续更改，并每3s绘制并保存一次轨迹，以及得到的点和过滤以及预测点的图。
+
+warp
+用缓存机制 (cached_circle_mapping)，并且由于仿射变换后的圆基本固定，所以所有仿射变换后的圆采样的点的坐标基本固定，也即仿射变换后采样点的坐标固定，随着时间的变化只有仿射变换矩阵在变，因此我对采样点矩阵我可以在前几次就保存好，之后根据不同的仿射变换矩阵，直接根据开始的时间对应上采样点的坐标，再将该坐标进行逆仿射变换即可得到此刻原始图像上的点。

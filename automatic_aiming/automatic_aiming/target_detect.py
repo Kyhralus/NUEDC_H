@@ -29,7 +29,7 @@ class TargetDetectionNode(Node):
         # 初始化摄像头
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
-            self.get_logger().error("无法打开摄像头")
+            self.get_logger().error("Cannot open camera")
             return
             
         # 关键设置：指定MJPG编码格式（高分辨率通常需要此格式）
@@ -42,7 +42,7 @@ class TargetDetectionNode(Node):
         # 验证设置是否成功
         actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.get_logger().info(f"摄像头分辨率设置为: {actual_width}x{actual_height}")
+        self.get_logger().info(f"Camera resolution set to: {actual_width}x{actual_height}")
         
         self.target_publisher = self.create_publisher(
             String,
@@ -50,9 +50,13 @@ class TargetDetectionNode(Node):
             10
         )
         
-        # 帧率计算相关
-        self.prev_time = time.time()
+        # 帧率计算相关 - 修复逻辑
+        self.frame_count = 0
+        self.fps_start_time = time.time()
         self.fps = 0
+        
+        # 激光寻找标志，默认关闭
+        self.enable_laser_detection = False
         
         # 多线程相关
         self.frame_queue = Queue(maxsize=2)  # 图像队列，限制大小避免内存堆积
@@ -70,7 +74,8 @@ class TargetDetectionNode(Node):
         # 创建定时器用于处理图像
         self.timer = self.create_timer(0.001, self.process_frame_from_queue)
         
-        self.get_logger().info('目标检测节点已启动')
+        self.get_logger().info('Target detection node started')
+        self.get_logger().info(f'Laser detection status: {"Enabled" if self.enable_laser_detection else "Disabled"}')
     
     def capture_frames(self):
         """图像捕获线程"""
@@ -78,8 +83,8 @@ class TargetDetectionNode(Node):
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
                 if ret:
-                    # 从1920x1080图像中心裁剪640x480区域
-                    cropped_frame = self.crop_center_image(frame, 640, 480)
+                    # 从图像中心截取800x600区域作为后续处理对象
+                    cropped_frame = self.crop_center_image(frame, 800, 600)
                     
                     # 非阻塞地放入队列
                     try:
@@ -101,7 +106,7 @@ class TargetDetectionNode(Node):
         except Empty:
             pass
     
-    def crop_center_image(self, image, target_width=640, target_height=480):
+    def crop_center_image(self, image, target_width=800, target_height=600):
         """从图像中心裁剪指定尺寸的区域"""
         h, w = image.shape[:2]
         
@@ -119,6 +124,32 @@ class TargetDetectionNode(Node):
         # 如果裁剪后的尺寸不足目标尺寸，进行填充或缩放
         if cropped.shape[:2] != (target_height, target_width):
             cropped = cv2.resize(cropped, (target_width, target_height))
+        
+        return cropped
+    
+    def crop_rectangle_with_padding(self, image, rect, padding=30):
+        """根据检测到的矩形裁剪图像，并添加指定的边距"""
+        if rect is None:
+            return self.crop_center_image(image, 800, 600)
+            
+        # 获取矩形的边界框
+        x, y, w, h = rect['bbox']
+        
+        # 添加边距
+        x_min = max(0, x - padding)
+        y_min = max(0, y - padding)
+        x_max = min(image.shape[1], x + w + padding)
+        y_max = min(image.shape[0], y + h + padding)
+        
+        # 裁剪图像
+        cropped = image[y_min:y_max, x_min:x_max]
+        
+        # 如果裁剪后的尺寸过小，回退到中心裁剪
+        if cropped.shape[0] < 100 or cropped.shape[1] < 100:
+            return self.crop_center_image(image, 800, 600)
+            
+        # 调整到固定尺寸以保持一致性
+        cropped = cv2.resize(cropped, (800, 600))
         
         return cropped
     
@@ -369,10 +400,13 @@ class TargetDetectionNode(Node):
         self.frame_count += 1
         
         try:
-            # 计算帧率
-            now = time.time()
-            self.fps = 0.9 * self.fps + 0.1 * (1.0 / (now - self.prev_time)) if self.prev_time else 0
-            self.prev_time = now
+            # 修复帧率计算逻辑
+            current_time = time.time()
+            elapsed_time = current_time - self.fps_start_time
+            if elapsed_time >= 1.0:  # 每秒计算一次FPS
+                self.fps = self.frame_count / elapsed_time
+                self.frame_count = 0
+                self.fps_start_time = current_time
             
             # 1. 统一预处理
             processed_data = self.preprocess_image(cv_image)
@@ -400,15 +434,21 @@ class TargetDetectionNode(Node):
                 try:
                     detection_results[task_name] = future.result(timeout=0.1)  # 100ms超时
                 except Exception as e:
-                    self.get_logger().warning(f"{task_name}检测超时或失败: {e}")
+                    self.get_logger().warning(f"{task_name} detection timeout or failed: {e}")
                     detection_results[task_name] = None
             
             # 解析结果
             outer_rect, inner_rect = detection_results.get('rectangle', (None, None))
             target_center, target_circle = detection_results.get('circle', (None, None))
             
-            # 3. 激光检测（依赖于圆形检测结果）
-            blue_laser_point = self.detect_blue_purple_laser(processed_data['hsv'], target_center)
+            # 更新矩形检测结果缓存（用于下一帧的智能裁剪）
+            if outer_rect is not None:
+                self.last_outer_rect = outer_rect
+            
+            # 3. 激光检测（仅当激光检测标志开启时执行）
+            blue_laser_point = None
+            if self.enable_laser_detection and target_center is not None:
+                blue_laser_point = self.detect_blue_purple_laser(processed_data['hsv'], target_center)
             
             # 4. 绘制结果和发布数据
             render_start = time.time()
@@ -435,13 +475,25 @@ class TargetDetectionNode(Node):
                 self.print_performance_stats()
                 
         except Exception as e:
-            self.get_logger().error(f"图像处理错误: {str(e)}")
+            self.get_logger().error(f"Image processing error: {str(e)}")
 
     def render_results(self, frame, outer_rect, inner_rect, target_center, target_circle, blue_laser_point):
         """渲染检测结果"""
         result_image = frame.copy()
         
         rect_detected = circle_detected = blue_laser_detected = False
+        
+        # 计算图像中心
+        image_center_x = frame.shape[1] // 2
+        image_center_y = frame.shape[0] // 2
+        image_center = (image_center_x, image_center_y)
+        
+        # 绘制图像中心
+        cv2.circle(result_image, image_center, 5, (255, 255, 255), -1)
+        cv2.line(result_image, (image_center_x - 10, image_center_y), (image_center_x + 10, image_center_y), (255, 255, 255), 2)
+        cv2.line(result_image, (image_center_x, image_center_y - 10), (image_center_x, image_center_y + 10), (255, 255, 255), 2)
+        cv2.putText(result_image, "Image Center", (image_center_x + 15, image_center_y - 15), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
         
         # 绘制矩形
         if outer_rect and inner_rect:
@@ -451,10 +503,10 @@ class TargetDetectionNode(Node):
             cv2.circle(result_image, outer_rect['center'], 5, (0, 0, 255), -1)
             cv2.circle(result_image, inner_rect['center'], 5, (0, 0, 255), -1)
             
-            cv2.putText(result_image, "OUTER RECT", 
+            cv2.putText(result_image, "Outer Rect", 
                        (outer_rect['center'][0]-50, outer_rect['center'][1]-20), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(result_image, "INNER RECT", 
+            cv2.putText(result_image, "Inner Rect", 
                        (inner_rect['center'][0]-50, inner_rect['center'][1]-20), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
         
@@ -465,23 +517,30 @@ class TargetDetectionNode(Node):
             if target_center:
                 cv2.circle(result_image, target_center, 1, (0, 0, 255), 3)
                 cv2.circle(result_image, target_center, 1, (0, 0, 255), -1)
-                cv2.putText(result_image, f"center: ({target_center[0]}, {target_center[1]})", 
+                cv2.putText(result_image, f"Target Center: ({target_center[0]}, {target_center[1]})", 
                            (target_center[0]+15, target_center[1]-15), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                
+                # 计算并显示目标中心与图像中心的偏差
+                center_err_x = target_center[0] - image_center_x
+                center_err_y = target_center[1] - image_center_y
+                cv2.line(result_image, image_center, target_center, (0, 165, 255), 2)
+                cv2.putText(result_image, f"Center Error: ({center_err_x}, {center_err_y})", 
+                           (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
             
             if target_circle:
                 tc_x, tc_y, tc_r = target_circle
                 cv2.circle(result_image, (tc_x, tc_y), tc_r, (0, 255, 0), 3)
                 cv2.circle(result_image, (tc_x, tc_y), 1, (0, 255, 0), -1)
-                cv2.putText(result_image, f"target_circle: ({tc_x}, {tc_y}), R={tc_r}", 
+                cv2.putText(result_image, f"Target Circle: ({tc_x}, {tc_y}), R={tc_r}", 
                            (tc_x-100, tc_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
-        # 绘制激光点
-        if blue_laser_point:
+        # 绘制激光点（仅当激光检测开启时）
+        if blue_laser_point and self.enable_laser_detection:
             blue_laser_detected = True
             cv2.circle(result_image, blue_laser_point, 1, (255, 0, 0), 3)
             cv2.circle(result_image, blue_laser_point, 1, (255, 0, 0), -1)
-            cv2.putText(result_image, f"laser: ({blue_laser_point[0]}, {blue_laser_point[1]})", 
+            cv2.putText(result_image, f"Laser Point: ({blue_laser_point[0]}, {blue_laser_point[1]})", 
                        (blue_laser_point[0]+15, blue_laser_point[1]+15), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
             
@@ -489,13 +548,18 @@ class TargetDetectionNode(Node):
                 err_x = blue_laser_point[0] - target_center[0]
                 err_y = blue_laser_point[1] - target_center[1]
                 cv2.line(result_image, target_center, blue_laser_point, (255, 255, 0), 2)
-                cv2.putText(result_image, f"Error: ({err_x}, {err_y})", 
+                cv2.putText(result_image, f"Laser Error: ({err_x}, {err_y})", 
                            (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
         
         # 添加状态信息
         cv2.putText(result_image, f"FPS: {self.fps:.1f}", (10, 30), 
                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
         cv2.putText(result_image, f"Frame: {self.frame_count}", (10, 60), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        # 激光检测状态
+        laser_status = "Laser Detection: ON" if self.enable_laser_detection else "Laser Detection: OFF"
+        cv2.putText(result_image, laser_status, (10, 150), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
         # 状态显示
@@ -530,28 +594,28 @@ class TargetDetectionNode(Node):
             msg_pub.data = target_message
             self.target_publisher.publish(msg_pub)
         
-        if blue_laser_point and target_center:
+        if blue_laser_point and target_center and self.enable_laser_detection:
             err_x = blue_laser_point[0] - target_center[0]
             err_y = blue_laser_point[1] - target_center[1]
             error_msg = String()
             error_msg.data = f"l,{err_x},{err_y}"
             self.target_publisher.publish(error_msg)
-    
+
     def print_performance_stats(self):
         """打印性能统计信息"""
-        print("=" * 60)
-        print(f"性能统计 (最近100帧, 总帧数: {self.frame_count})")
-        print("=" * 60)
+        self.get_logger().info("=" * 60)
+        self.get_logger().info(f"Performance Stats (Recent 100 frames, Total frames: {self.frame_count})")
+        self.get_logger().info("=" * 60)
         
         for task, times in self.timing_stats.items():
             if times:
                 avg_time = np.mean(times[-100:])  # 最近100次的平均值
                 max_time = np.max(times[-100:])
                 min_time = np.min(times[-100:])
-                print(f"{task:20s}: 平均={avg_time:6.2f}ms, 最大={max_time:6.2f}ms, 最小={min_time:6.2f}ms")
+                self.get_logger().info(f"{task:20s}: Avg={avg_time:6.2f}ms, Max={max_time:6.2f}ms, Min={min_time:6.2f}ms")
         
-        print(f"当前FPS: {self.fps:.1f}")
-        print("=" * 60)
+        self.get_logger().info(f"Current FPS: {self.fps:.1f}")
+        self.get_logger().info("=" * 60)
         
         # 清理旧的统计数据，保持内存使用合理
         for task in self.timing_stats:
@@ -574,9 +638,9 @@ def main(args=None):
         node = TargetDetectionNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
-        print("正在关闭节点...")
+        self.get_logger().info("Node shutting down...")
     except Exception as e:
-        print(f"节点运行错误: {e}")
+        self.get_logger().error(f"Node execution error: {e}")
     finally:
         cv2.destroyAllWindows()
         rclpy.shutdown()

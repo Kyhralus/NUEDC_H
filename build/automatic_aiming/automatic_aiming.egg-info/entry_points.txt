@@ -1,5 +1,6 @@
 [console_scripts]
 camera_publisher = automatic_aiming.camera_publisher:main
+ekf_filter_node = automatic_aiming.ekf_filter_node:main
 gimbal_controller = automatic_aiming.gimbal_controller:main
 laser_tuner = automatic_aiming.laser_tuner:main
 main_controller = automatic_aiming.main_controller:main

@@ -33,6 +33,8 @@ setup(
             'gimbal_controller = automatic_aiming.gimbal_controller:main',
             # 激光参数调节节点
             'laser_tuner = automatic_aiming.laser_tuner:main',
+            # 扩展卡尔曼滤波器节点
+            'ekf_filter_node = automatic_aiming.ekf_filter_node:main',
             # 单片机通信 uart 节点
             'uart1_receiver = automatic_aiming.uart1_receiver:main',
             'uart1_sender = automatic_aiming.uart1_sender:main',
