@@ -152,8 +152,8 @@ class TargetDetectionNode(Node):
         
         return outer_rect, inner_rect, img_raw, rect_debug_img
     
-    def detect_circles(self, frame: np.ndarray) -> Tuple[np.ndarray, Optional[Tuple[int, int]], Optional[Tuple[int, int, int]], np.ndarray]:
-        """圆形检测主函数 - 只返回检测结果，不组织消息"""
+    def detect_circles(self, frame: np.ndarray) -> Tuple[np.ndarray, Optional[Tuple[int, int]], Optional[Tuple[int, int, int]], Optional[str], np.ndarray]:
+        """圆形检测主函数 - 返回靶心坐标和目标圆信息"""
         start_time = time.time()
         result_frame = frame.copy()
         
@@ -200,7 +200,7 @@ class TargetDetectionNode(Node):
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             end_time = time.time()
             self.get_logger().debug(f"圆形检测耗时: {(end_time - start_time)*1000:.2f}ms")
-            return result_frame, None, None, circle_debug_img
+            return result_frame, None, None, None, circle_debug_img
         
         hierarchy = hierarchy[0]
         
@@ -241,7 +241,7 @@ class TargetDetectionNode(Node):
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             end_time = time.time()
             self.get_logger().debug(f"圆形检测耗时: {(end_time - start_time)*1000:.2f}ms")
-            return result_frame, None, None, circle_debug_img
+            return result_frame, None, None, None, circle_debug_img
         
         candidate_circles = np.array(candidate_circles)
         
@@ -283,6 +283,7 @@ class TargetDetectionNode(Node):
         
         # 计算最终目标圆
         target_circle = None
+        target_message = f"p,{target_center[0]},{target_center[1]}"  # 默认发布靶心信息
         
         if len(target_circles) == 1:
             target_circle = (int(target_circles[0][0]), int(target_circles[0][1]), int(target_circles[0][2]))
@@ -300,6 +301,7 @@ class TargetDetectionNode(Node):
             cv2.circle(result_frame, (tx, ty), 5, (0, 255, 0), -1)
             cv2.putText(result_frame, f"目标圆: ({tx}, {ty}), R={tr}", 
                         (tx - 80, ty - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            target_message = f"c,{tx},{ty},{tr}"
             
             # 在调试图像上标记最终目标
             cv2.circle(circle_debug_img, (tx, ty), tr, (0, 255, 0), 4)
@@ -308,14 +310,12 @@ class TargetDetectionNode(Node):
             cv2.putText(circle_debug_img, f"Final Target Found: ({tx}, {ty})", (10, 120), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         else:
-            cv2.putText(circle_debug_img, f"Using Bullseye Only: {target_center}", (10, 120), 
+            cv2.putText(circle_debug_img, f"Using Bullseye: {target_center}", (10, 120), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         
         end_time = time.time()
         self.get_logger().debug(f"圆形检测耗时: {(end_time - start_time)*1000:.2f}ms")
-        
-        # 只返回检测结果，不组织消息
-        return result_frame, target_center, target_circle, circle_debug_img
+        return result_frame, target_center, target_circle, target_message, circle_debug_img
 
     def image_callback(self, msg):
         """图像回调函数"""
@@ -336,6 +336,7 @@ class TargetDetectionNode(Node):
             result_image = cv_image.copy()
             rect_detected = False
             circle_detected = False
+            target_message = None
             circle_debug_img = None
             
             # 画出检测到的矩形
@@ -370,59 +371,44 @@ class TargetDetectionNode(Node):
                     if roi.size > 0:
                         roi_resized = cv2.resize(roi, (640, 480))
                         
-                        # 圆形检测 - 更新函数调用，只返回检测结果
-                        circle_result, target_center, target_circle, circle_debug_img = self.detect_circles(roi_resized)
+                        # 圆形检测 - 更新函数调用
+                        circle_result, target_center, target_circle, target_message, circle_debug_img = self.detect_circles(roi_resized)
                         
-                        # 初始化消息发布列表
-                        messages_to_publish = []
-                        
-                        # 处理靶心检测结果
-                        if target_center is not None:
+                        if target_center is not None or target_circle is not None:
                             circle_detected = True
                             
                             # 映射靶心坐标到原图
-                            scale_x = (x_max - x_min) / 640
-                            scale_y = (y_max - y_min) / 480
-                            mapped_center_x = int(target_center[0] * scale_x + x_min)
-                            mapped_center_y = int(target_center[1] * scale_y + y_min)
+                            if target_center is not None:
+                                scale_x = (x_max - x_min) / 640
+                                scale_y = (y_max - y_min) / 480
+                                mapped_center_x = int(target_center[0] * scale_x + x_min)
+                                mapped_center_y = int(target_center[1] * scale_y + y_min)
+                                
+                                # 在主图像上画出靶心（红色）
+                                cv2.circle(result_image, (mapped_center_x, mapped_center_y), 8, (0, 0, 255), 3)
+                                cv2.circle(result_image, (mapped_center_x, mapped_center_y), 3, (0, 0, 255), -1)
+                                cv2.putText(result_image, f"靶心: ({mapped_center_x}, {mapped_center_y})", 
+                                           (mapped_center_x+15, mapped_center_y-15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
                             
-                            # 在主图像上画出靶心（红色）
-                            cv2.circle(result_image, (mapped_center_x, mapped_center_y), 8, (0, 0, 255), 3)
-                            cv2.circle(result_image, (mapped_center_x, mapped_center_y), 3, (0, 0, 255), -1)
-                            cv2.putText(result_image, f"靶心: ({mapped_center_x}, {mapped_center_y})", 
-                                       (mapped_center_x+15, mapped_center_y-15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-                            
-                            # 组织靶心消息
-                            target_center_msg = f"p,{mapped_center_x},{mapped_center_y}"
-                            messages_to_publish.append(target_center_msg)
-                            self.get_logger().info(f"靶心检测到: {target_center_msg}")
-                        
-                        # 处理目标圆检测结果
-                        if target_circle is not None:
-                            tc_x, tc_y, tc_r = target_circle
-                            mapped_circle_x = int(tc_x * scale_x + x_min)
-                            mapped_circle_y = int(tc_y * scale_y + y_min)
-                            mapped_circle_r = int(tc_r * scale_x)  # 缩放半径
-                            
-                            # 在主图像上画出目标圆（绿色）
-                            cv2.circle(result_image, (mapped_circle_x, mapped_circle_y), mapped_circle_r, (0, 255, 0), 3)
-                            cv2.circle(result_image, (mapped_circle_x, mapped_circle_y), 5, (0, 255, 0), -1)
-                            cv2.putText(result_image, f"目标圆: ({mapped_circle_x}, {mapped_circle_y}), R={mapped_circle_r}", 
-                                       (mapped_circle_x-100, mapped_circle_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            
-                            # 组织目标圆消息
-                            target_circle_msg = f"c,{mapped_circle_x},{mapped_circle_y},{mapped_circle_r}"
-                            messages_to_publish.append(target_circle_msg)
-                            self.get_logger().info(f"目标圆检测到: {target_circle_msg}")
-                        
-                        # 发布所有检测到的目标数据
-                        for message in messages_to_publish:
-                            msg_pub = String()
-                            msg_pub.data = message
-                            self.target_publisher.publish(msg_pub)
-                            self.get_logger().info(f"发布目标数据: {message}")
-                            # 添加小延迟避免消息冲突
-                            time.sleep(0.01)
+                            # 映射目标圆到原图
+                            if target_circle is not None:
+                                tc_x, tc_y, tc_r = target_circle
+                                mapped_circle_x = int(tc_x * scale_x + x_min)
+                                mapped_circle_y = int(tc_y * scale_y + y_min)
+                                mapped_circle_r = int(tc_r * scale_x)  # 缩放半径
+                                
+                                # 在主图像上画出目标圆（绿色）
+                                cv2.circle(result_image, (mapped_circle_x, mapped_circle_y), mapped_circle_r, (0, 255, 0), 3)
+                                cv2.circle(result_image, (mapped_circle_x, mapped_circle_y), 5, (0, 255, 0), -1)
+                                cv2.putText(result_image, f"目标圆: ({mapped_circle_x}, {mapped_circle_y}), R={mapped_circle_r}", 
+                                           (mapped_circle_x-100, mapped_circle_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                
+                # 发布目标数据
+                if target_message:
+                    msg_pub = String()
+                    msg_pub.data = target_message
+                    self.target_publisher.publish(msg_pub)
+                    self.get_logger().info(f"发布目标数据: {target_message}")
             
             # 添加帧率显示
             cv2.putText(result_image, f"FPS: {self.fps:.1f}", (10, 30), 
