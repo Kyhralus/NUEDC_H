@@ -92,10 +92,10 @@ class GimbalController(Node):
     def format_gimbal_command(self, x_error, y_error):
         """
         格式化云台控制指令
-        格式: "@0,x偏差,y偏差\r\n"
+        格式: "@0,x偏差,y偏差\"
         """
         # 格式化指令字符串
-        command = f"@0,{x_error},{y_error}\r\n"
+        command = f"@0,{x_error},{y_error}\r"
         return command
     
     def target_callback(self, msg):

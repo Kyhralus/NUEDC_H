@@ -93,7 +93,7 @@ fi
 
 # 定义所有节点（注释掉uart0相关节点）
 NODES=(
-    "camera_publisher"
+    # "camera_publisher"
     "main_controller" 
     "target_detect"
     "gimbal_controller"
@@ -120,7 +120,7 @@ for node in "${NODES[@]}"; do
         
         # 为不同节点设置不同颜色
         case "$node_name" in
-            "camera_publisher") color="\033[32m" ;;      # 绿色
+            # "camera_publisher") color="\033[32m" ;;      # 绿色
             "main_controller") color="\033[33m" ;;       # 黄色
             "target_detect") color="\033[31m" ;;         # 红色
             "gimbal_controller") color="\033[30m" ;;     # 橙色
