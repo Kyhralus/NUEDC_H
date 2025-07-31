@@ -1,0 +1,11 @@
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.232324384] [main_controller]: 创建uart1_sender_topic发布方成功！
+[2025-07-31 14:18:35] [main_controller] [WARN] [1753942715.234806746] [main_controller]: 云台重置服务未就绪（启动时检查），后续调用可能失败
+[2025-07-31 14:18:35] [main_controller] [WARN] [1753942715.235616408] [main_controller]: 云台设置服务未就绪
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.236162697] [main_controller]: 创建uart1_sender_topic发布方成功！
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.236580945] [main_controller]: 初始化控制参数
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.236986359] [main_controller]: PID控制器已初始化
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.237383315] [main_controller]: 订阅目标检测topic成功
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.237777938] [main_controller]: 订阅串口接收topic成功
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.238377310] [main_controller]: 主控制器节点已启动!
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.238791183] [main_controller]: 等待目标检测数据...
+[2025-07-31 14:18:35] [main_controller] [INFO] [1753942715.239191639] [main_controller]: 主控制器节点已启动!

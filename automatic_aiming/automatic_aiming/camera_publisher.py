@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+import time
 import cv2
 
 class CameraPublisher(Node):
@@ -9,7 +10,16 @@ class CameraPublisher(Node):
         super().__init__('camera_publisher')
         self.publisher_ = self.create_publisher(Image, 'image_raw', 10)
         self.bridge = CvBridge()
+
         self.cap = cv2.VideoCapture(0)  # 0 代表默认摄像头
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        time.sleep(1)  # 等待摄像头设置生效
+        
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.get_logger().info(f"摄像头已打开，实际分辨率: {width}x{height}")
         if not self.cap.isOpened():
             self.get_logger().error("无法打开摄像头")
         else:

@@ -1,0 +1,13 @@
+[console_scripts]
+camera_publisher = automatic_aiming.camera_publisher:main
+main_controller = automatic_aiming.main_controller:main
+speakr_node = automatic_aiming.speakr_node:main
+target_detect = automatic_aiming.target_detect:main
+test_node = automatic_aiming.test_node:main
+uart0_receiver = automatic_aiming.uart0_receiver:main
+uart0_sender = automatic_aiming.uart0_sender:main
+uart1_receiver = automatic_aiming.uart1_receiver:main
+uart1_sender = automatic_aiming.uart1_sender:main
+uart3_receiver = automatic_aiming.uart3_receiver:main
+uart3_sender = automatic_aiming.uart3_sender:main
+

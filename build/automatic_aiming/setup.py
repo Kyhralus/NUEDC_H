@@ -1,0 +1,1 @@
+/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/setup.py

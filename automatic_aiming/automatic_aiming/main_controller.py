@@ -32,17 +32,16 @@ class Map():
 class MainController(Node):
     def __init__(self):
         super().__init__('main_controller')
+        
+        # 设置日志级别
+        self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
+        
         # 初始化串口通信
         self.uart1_sender_init()        # 初始化发送发送，创建  uart_sender_topic 发布方
         self.uart1_receiver_init()      # 初始化发送发送，创建  uart_receiver_topic 订阅方
 
         # 订阅各模块结果话题
-        self.lidar_sub = self.create_subscription(String, 'lidar_result', self.lidar_result_callback, 10)
-        self.yolov8_sub = self.create_subscription(String, 'yolov8_result', self.yolov8_result_callback, 10)
         self.circle_laser_sub = self.create_subscription(String, 'gimbal_error', self.gimbal_error_callback, 10)
-        self.t265_sub = self.create_subscription(PoseStamped, 't265_camera/pose', self.t265_pose_callback, 10)
-        self.target_sub = self.create_subscription(PoseStamped, 'target_position', self.target_callback, 10)
-        self.tracking_sub = self.create_subscription(PoseStamped, 'tracking', self.tracking_callback, 10)
         self.current_command = None
 
         # 新增：创建云台重置服务客户端
@@ -71,7 +70,15 @@ class MainController(Node):
         self.enter_offset = None
         self.shotting_flag = False
 
+        self.get_logger().info('创建uart1_sender_topic发布方成功！')
+        self.get_logger().info('初始化控制参数')
+        self.get_logger().info('PID控制器已初始化')
+        self.get_logger().info('订阅目标检测topic成功')
+        self.get_logger().info('订阅串口接收topic成功')
         
+        self.get_logger().info('主控制器节点已启动!')
+        self.get_logger().info('等待目标检测数据...')
+
     def loop_callback(self):
         self.state_machine()
 
@@ -425,9 +432,9 @@ class MainController(Node):
             订阅 uart1_receiver_topic 话题，接收相关数据进行处理
             
         '''
-        self.get_logger().info(f"uart1接收到数据{msg}")
+        self.get_logger().info(f"接收到串口数据: {msg.data}")
         self.current_command = msg.data.split('\r')[0]
-        self.get_logger().info(f"指令为{self.current_command}")
+        self.get_logger().info(f"解析指令为: {self.current_command}")
 
     def destroy_node(self):
         super().destroy_node()
@@ -436,6 +443,10 @@ class MainController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    
+    # 设置全局日志级别
+    rclpy.logging.set_logger_level('main_controller', rclpy.logging.LoggingSeverity.INFO)
+    
     main_controller = MainController()
     main_controller.get_logger().info("主控制器节点已启动!")
     try:

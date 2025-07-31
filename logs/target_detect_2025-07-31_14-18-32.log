@@ -1,0 +1,235 @@
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.240768372] [target_detection_node]: 目标检测节点已启动
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.283115815] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.639265478] [target_detection_node]: 总处理耗时: 395.72ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.695420640] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.709636982] [target_detection_node]: 总处理耗时: 68.11ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.755731447] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.762454620] [target_detection_node]: 总处理耗时: 50.14ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.807284425] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.819761568] [target_detection_node]: 总处理耗时: 54.99ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.862916048] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.869660221] [target_detection_node]: 总处理耗时: 47.92ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.910310757] [target_detection_node]: 发布目标数据: c,324,244,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.916456724] [target_detection_node]: 总处理耗时: 44.75ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.959265873] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:37] [target_detect] [INFO] [1753942717.965230425] [target_detection_node]: 总处理耗时: 46.86ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.004217595] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.010504436] [target_detection_node]: 总处理耗时: 43.11ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.056632735] [target_detection_node]: 发布目标数据: c,324,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.063212408] [target_detection_node]: 总处理耗时: 50.07ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.104732981] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.112830188] [target_detection_node]: 总处理耗时: 47.60ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.155308298] [target_detection_node]: 发布目标数据: c,323,245,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.162497260] [target_detection_node]: 总处理耗时: 47.43ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.200774516] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.207959395] [target_detection_node]: 总处理耗时: 43.56ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.252368911] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.258430295] [target_detection_node]: 总处理耗时: 48.44ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.300036326] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.306579833] [target_detection_node]: 总处理耗时: 46.24ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.348902485] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.355572866] [target_detection_node]: 总处理耗时: 47.17ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.398095017] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.405133188] [target_detection_node]: 总处理耗时: 46.63ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.446799593] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.453607641] [target_detection_node]: 总处理耗时: 45.89ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.488515873] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.495196755] [target_detection_node]: 总处理耗时: 39.54ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.536750285] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.543985622] [target_detection_node]: 总处理耗时: 46.54ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.584540783] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.591898036] [target_detection_node]: 总处理耗时: 44.98ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.637956627] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.644433926] [target_detection_node]: 总处理耗时: 50.51ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.688051571] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.695086533] [target_detection_node]: 总处理耗时: 48.71ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.735117281] [target_detection_node]: 发布目标数据: c,324,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.741720579] [target_detection_node]: 总处理耗时: 44.19ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.782835737] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.790234115] [target_detection_node]: 总处理耗时: 46.04ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.833809760] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.840842681] [target_detection_node]: 总处理耗时: 47.67ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.882817376] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.889286217] [target_detection_node]: 总处理耗时: 45.67ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.929473589] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.935520098] [target_detection_node]: 总处理耗时: 43.84ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.974782600] [target_detection_node]: 发布目标数据: c,324,244,114
+[2025-07-31 14:18:38] [target_detect] [INFO] [1753942718.981914104] [target_detection_node]: 总处理耗时: 44.34ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.024333588] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.030648138] [target_detection_node]: 总处理耗时: 46.44ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.068970894] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.082318366] [target_detection_node]: 总处理耗时: 49.46ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.125576679] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.132007312] [target_detection_node]: 总处理耗时: 47.40ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.173419677] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.182016798] [target_detection_node]: 总处理耗时: 47.73ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.225694526] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.232378616] [target_detection_node]: 总处理耗时: 48.05ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.270691164] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.277097297] [target_detection_node]: 总处理耗时: 42.85ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.318891743] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.325266959] [target_detection_node]: 总处理耗时: 46.14ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.368857187] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.375792984] [target_detection_node]: 总处理耗时: 48.19ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.416039855] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.422879111] [target_detection_node]: 总处理耗时: 44.63ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.463284939] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.469833405] [target_detection_node]: 总处理耗时: 44.72ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.515245082] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.521690006] [target_detection_node]: 总处理耗时: 49.73ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.567175766] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.573901856] [target_detection_node]: 总处理耗时: 50.30ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.617279169] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.623460719] [target_detection_node]: 总处理耗时: 46.39ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.670090682] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.678554804] [target_detection_node]: 总处理耗时: 53.21ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.721831200] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.728388416] [target_detection_node]: 总处理耗时: 47.50ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.769524866] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.776463579] [target_detection_node]: 总处理耗时: 45.81ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.816142286] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.822566502] [target_detection_node]: 总处理耗时: 44.01ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.862668416] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.870011085] [target_detection_node]: 总处理耗时: 44.66ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.910837787] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.917488627] [target_detection_node]: 总处理耗时: 45.01ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.960935356] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:39] [target_detect] [INFO] [1753942719.966895533] [target_detection_node]: 总处理耗时: 46.60ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.005789953] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.013044539] [target_detection_node]: 总处理耗时: 44.07ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.053304244] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.060223999] [target_detection_node]: 总处理耗时: 44.37ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.102623650] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.110167860] [target_detection_node]: 总处理耗时: 47.57ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.152338554] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.158640271] [target_detection_node]: 总处理耗时: 45.84ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.198756476] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.205773064] [target_detection_node]: 总处理耗时: 44.88ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.248761587] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.255244720] [target_detection_node]: 总处理耗时: 46.97ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.295972255] [target_detection_node]: 发布目标数据: c,323,245,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.302460929] [target_detection_node]: 总处理耗时: 45.40ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.344865830] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.351036881] [target_detection_node]: 总处理耗时: 46.60ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.386028822] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.392215331] [target_detection_node]: 总处理耗时: 38.94ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.432962991] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.439743913] [target_detection_node]: 总处理耗时: 45.66ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.487068330] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.493869961] [target_detection_node]: 总处理耗时: 52.26ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.539590512] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.546654349] [target_detection_node]: 总处理耗时: 50.55ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.590440577] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.596690377] [target_detection_node]: 总处理耗时: 47.68ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.643477839] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.649846347] [target_detection_node]: 总处理耗时: 50.89ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.691367503] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.697538262] [target_detection_node]: 总处理耗时: 45.76ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.738679961] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.744982845] [target_detection_node]: 总处理耗时: 44.93ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.785197633] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.791333392] [target_detection_node]: 总处理耗时: 44.10ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.836059948] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.842832995] [target_detection_node]: 总处理耗时: 49.02ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.886836221] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.893298646] [target_detection_node]: 总处理耗时: 48.57ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.933575558] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.939995108] [target_detection_node]: 总处理耗时: 44.69ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.982441134] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:40] [target_detect] [INFO] [1753942720.988392561] [target_detection_node]: 总处理耗时: 46.28ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.029585010] [target_detection_node]: 发布目标数据: c,323,245,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.036710389] [target_detection_node]: 总处理耗时: 46.44ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.077272842] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.084852344] [target_detection_node]: 总处理耗时: 46.14ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.128928194] [target_detection_node]: 发布目标数据: c,323,245,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.135828116] [target_detection_node]: 总处理耗时: 48.64ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.185239397] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.193357896] [target_detection_node]: 总处理耗时: 55.28ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.237441622] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.243502423] [target_detection_node]: 总处理耗时: 47.99ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.287708940] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.294047407] [target_detection_node]: 总处理耗时: 48.57ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.336399808] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.342948857] [target_detection_node]: 总处理耗时: 46.86ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.388524742] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.395366330] [target_detection_node]: 总处理耗时: 50.47ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.438085063] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.445407608] [target_detection_node]: 总处理耗时: 47.26ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.479411970] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.486086727] [target_detection_node]: 总处理耗时: 38.59ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.526229765] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.532230192] [target_detection_node]: 总处理耗时: 43.92ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.573898055] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.580543937] [target_detection_node]: 总处理耗时: 46.11ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.629017223] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.636514767] [target_detection_node]: 总处理耗时: 53.77ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.677340593] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.684076307] [target_detection_node]: 总处理耗时: 44.83ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.724903300] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.731409183] [target_detection_node]: 总处理耗时: 43.94ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.774823245] [target_detection_node]: 发布目标数据: c,323,245,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.781899916] [target_detection_node]: 总处理耗时: 48.08ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.824369567] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.831932152] [target_detection_node]: 总处理耗时: 47.53ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.869827328] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.876659875] [target_detection_node]: 总处理耗时: 42.61ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.918568945] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.925025536] [target_detection_node]: 总处理耗时: 46.41ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.964130830] [target_detection_node]: 发布目标数据: c,324,244,114
+[2025-07-31 14:18:41] [target_detect] [INFO] [1753942721.970550963] [target_detection_node]: 总处理耗时: 43.54ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.012483950] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.019102998] [target_detection_node]: 总处理耗时: 46.24ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.061477858] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.069337358] [target_detection_node]: 总处理耗时: 47.51ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.111400137] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.117158481] [target_detection_node]: 总处理耗时: 45.61ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.158955844] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.166984802] [target_detection_node]: 总处理耗时: 47.98ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.208784206] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.215059673] [target_detection_node]: 总处理耗时: 46.07ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.255652167] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.262378548] [target_detection_node]: 总处理耗时: 45.05ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.303860621] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.311127166] [target_detection_node]: 总处理耗时: 46.35ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.353059278] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.359711868] [target_detection_node]: 总处理耗时: 45.87ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.402020228] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.409188774] [target_detection_node]: 总处理耗时: 47.46ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.453104792] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.459608341] [target_detection_node]: 总处理耗时: 48.32ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.502396782] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.508601375] [target_detection_node]: 总处理耗时: 46.64ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.545392889] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.552408018] [target_detection_node]: 总处理耗时: 41.84ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.596415328] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.602882711] [target_detection_node]: 总处理耗时: 48.46ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.643094582] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.649898254] [target_detection_node]: 总处理耗时: 45.17ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.689221130] [target_detection_node]: 发布目标数据: c,322,245,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.697581419] [target_detection_node]: 总处理耗时: 45.53ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.747607822] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.753880664] [target_detection_node]: 总处理耗时: 54.27ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.793200915] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.799341632] [target_detection_node]: 总处理耗时: 43.65ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.837053934] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.843640315] [target_detection_node]: 总处理耗时: 42.53ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.883169690] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.892524849] [target_detection_node]: 总处理耗时: 46.88ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.933570883] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.940434930] [target_detection_node]: 总处理耗时: 45.05ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.978614478] [target_detection_node]: 发布目标数据: c,323,245,114
+[2025-07-31 14:18:42] [target_detect] [INFO] [1753942722.985799649] [target_detection_node]: 总处理耗时: 43.02ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.028146800] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.033969311] [target_detection_node]: 总处理耗时: 46.21ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.077612040] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.084335796] [target_detection_node]: 总处理耗时: 48.46ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.127951107] [target_detection_node]: 发布目标数据: c,323,242,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.133863159] [target_detection_node]: 总处理耗时: 47.58ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.172687288] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.179190254] [target_detection_node]: 总处理耗时: 43.26ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.222331318] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.230350067] [target_detection_node]: 总处理耗时: 48.50ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.273193341] [target_detection_node]: 发布目标数据: c,323,244,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.279591891] [target_detection_node]: 总处理耗时: 46.69ms, 矩形检测: 成功, 圆形检测: 成功
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.327008182] [target_detection_node]: 发布目标数据: c,323,243,114
+[2025-07-31 14:18:43] [target_detect] [INFO] [1753942723.333516106] [target_detection_node]: 总处理耗时: 51.90ms, 矩形检测: 成功, 圆形检测: 成功
