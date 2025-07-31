@@ -17,6 +17,13 @@ colcon build --packages-select <package name> --symlink-install   # 不能同时
 # 删除编译文件
 rm -rf build install log
 
+# git 取消代理
+# 取消 HTTP 代理设置
+git config --global --unset http.proxy
+
+# 取消 HTTPS 代理设置
+git config --global --unset https.proxy
+
 # 启动节点 - 带日志记录
 export RCUTILS_LOGGING_SEVERITY=INFO
 export RCUTILS_LOGGING_USE_STDOUT=1
