@@ -20,9 +20,14 @@ rm -rf build install log
 # git 取消代理
 # 取消 HTTP 代理设置
 git config --global --unset http.proxy
-
 # 取消 HTTPS 代理设置
 git config --global --unset https.proxy
+
+# 推送出错时改用ssh
+# 更换远程地址为 SSH 协议
+git remote set-url origin git@github.com:Kyhralus/NUEDC_H.git
+# 推送代码
+git push origin main 
 
 # 启动节点 - 带日志记录
 export RCUTILS_LOGGING_SEVERITY=INFO
@@ -34,39 +39,15 @@ export RCUTILS_LOGGING_SEVERITY=DEBUG
 ros2 launch automatic_aiming full_system.launch.py --log-level debug
 
 # 查看特定节点的详细日志
-ros2 run automatic_aiming target_detect --ros-args --log-level DEBUG
-ros2 run automatic_aiming main_controller --ros-args --log-level INFO
+colcon build --symlink-install
+. install/setup.bash
+ros2 run automatic_aiming camera_publisher
+. install/setup.bash
+ros2 run automatic_aiming target_detect 
 
-## 节点介绍
-Note: 
-- [ ] is holding
-- [/] is doing
-- [X] is done
+ros2 run automatic_aiming main_controller 
 
----
-
-[X] ROS2环境配置与工作空间创建
-
-[X] 摄像头驱动与图像采集节点开发
-
-[/] 图像处理节点 多线程
-    线程一：靶心，靶环识别
-    - 1. 获得内外边框，获得中心点（粗略中心）
-    - 2. 提取目标区域（外边框外扩20piexs），此后处理该区域，其他区域不做处理 --- resize 为 640X480 [@TODO 投影校正]
-    - 3. 识别圆形靶环，获得最里面的圆心 --- 记作 target_center
-    - 4. 提取出从内到外的第三个圆环 --- 记作 target_circle
-    - 5. 选取 target_circle 构造 target_circle_table，得到圆的每个像素点坐标，第一个元素为最上方的像素点，顺时针存储其他点
-
-    线程二：蓝紫色激光识别
-    - 1. 识别蓝紫色激光，获得激光点的坐标
-    - 2. 计算蓝色激光点和 target_center 的像素偏差，delta_x, delta_y, 发送"@0,delta_x,delta_y"到"uart1_sender_topic"
-    - 3. 计算蓝色激光点和 target_circle_table 中依次每个像素点的偏差，delta_x, delta_y, 逐个发送"@1,delta_x,delta_y"到"uart1_sender_topic"
-
-[X] main_controller节点
-    读取和小车的通信指令，同时发送指令，对不同指令执行不同任务
-
-[X] GUI界面节点
-    用 pytk 写一个简易调参界面，完成对阈值的调整，任务的选择，任务结果的显示
+ros2 run automatic_aiming laser_detect
 
 ## 日志配置说明
 为了确保节点内部的日志信息正确保存，需要设置以下环境变量：
@@ -89,7 +70,7 @@ ros2 launch automatic_aiming full_system.launch.py --log-level debug 2>&1 | tee 
 
 帮我把检测圆的层级改掉，改成检测所有轮廓，不要层级，然后进行圆度检测，显示检测到的圆，记作candidate_circles,保留它们的中心和半径，然后选取其中最小面积的圆作为minist_circle,其中半径在90-120的圆作为一个数组，可能有多个圆，然后把这个数组的圆心和半径都取均值作为target_circle，用蓝色画出minist_circle以及它的圆心，用红色画出target_circle以及它的圆心。
 
-    # 修改逻辑 
+    # 修改逻辑 【存在问题，检测出来不稳定】
     '''
     1. detect_nested_rects 换成 detect_border_rects
         处理逻辑：
@@ -124,3 +105,39 @@ ros2 launch automatic_aiming full_system.launch.py --log-level debug 2>&1 | tee 
         # 4. 对 target_circle 的圆形用之前得到的投影矩阵进行逆变换得到实际点 visual_target_point，打印出影矩阵和实际点 visual_target_point的信息
         # 4. 将 target_circle 画到 roi_region 上，并画出圆形，显示帧率，并用另一种颜色 画出visual_target_point
     '''
+
+
+
+
+
+----------
+## 节点介绍
+Note: 
+- [ ] is holding
+- [/] is doing
+- [X] is done
+
+---
+
+[X] ROS2环境配置与工作空间创建
+
+[X] 摄像头驱动与图像采集节点开发
+
+[/] 图像处理节点 多线程
+    线程一：靶心，靶环识别
+    - 1. 获得内外边框，获得中心点（粗略中心）
+    - 2. 提取目标区域（外边框外扩20piexs），此后处理该区域，其他区域不做处理 --- resize 为 640X480 [@TODO 投影校正]
+    - 3. 识别圆形靶环，获得最里面的圆心 --- 记作 target_center
+    - 4. 提取出从内到外的第三个圆环 --- 记作 target_circle
+    - 5. 选取 target_circle 构造 target_circle_table，得到圆的每个像素点坐标，第一个元素为最上方的像素点，顺时针存储其他点
+
+    线程二：蓝紫色激光识别
+    - 1. 识别蓝紫色激光，获得激光点的坐标
+    - 2. 计算蓝色激光点和 target_center 的像素偏差，delta_x, delta_y, 发送"@0,delta_x,delta_y"到"uart1_sender_topic"
+    - 3. 计算蓝色激光点和 target_circle_table 中依次每个像素点的偏差，delta_x, delta_y, 逐个发送"@1,delta_x,delta_y"到"uart1_sender_topic"
+
+[X] main_controller节点
+    读取和小车的通信指令，同时发送指令，对不同指令执行不同任务
+
+[X] GUI界面节点
+    用 pytk 写一个简易调参界面，完成对阈值的调整，任务的选择，任务结果的显示

@@ -156,145 +156,131 @@ class TargetDetectionNode(Node):
         """圆形检测主函数 - 返回靶心坐标和目标圆信息"""
         start_time = time.time()
         result_frame = frame.copy()
-        
-        # 创建圆形检测调试图像
+
+        # 创建调试图像
         circle_debug_img = frame.copy()
-        
-        # 图像预处理
+
+        # ------------------ 1. 灰度化 ------------------
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        cv2.imshow("Step1_Gray", gray)
+
+        # ------------------ 2. 双边滤波 ------------------
         bilateral = cv2.bilateralFilter(gray, 9, 75, 75)
-        
-        # ROI处理
+        cv2.imshow("Step2_Bilateral", bilateral)
+
+        # ------------------ 3. ROI提取 ------------------
         height, width = bilateral.shape[:2]
-        margin = 90
+        margin = 100
         x1, y1 = max(0, margin), max(0, margin)
         x2, y2 = min(width - margin, width), min(height - margin, height)
-        
+
         if x2 <= x1 or y2 <= y1:
             roi = bilateral
             x1, y1, x2, y2 = 0, 0, width, height
         else:
             roi = bilateral[y1:y2, x1:x2]
-        
-        # 自适应阈值处理
+        cv2.imshow("Step3_ROI", roi)
+
+        # ------------------ 4. 自适应阈值处理 ------------------
         roi_thresh = cv2.adaptiveThreshold(
             roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
             cv2.THRESH_BINARY_INV, 11, 2
         )
-        
+        cv2.imshow("Step4_Threshold", roi_thresh)
+
+        # 将ROI结果映射回全图
         thresh_full = np.zeros_like(bilateral)
         thresh_full[y1:y2, x1:x2] = roi_thresh
-        
-        # 形态学操作
+        cv2.imshow("Step4_FullThresh", thresh_full)
+
+        # ------------------ 5. 形态学操作 ------------------
         kernel_ellipse = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         kernel_rect = np.ones((2, 2), np.uint8)
         opened = cv2.morphologyEx(thresh_full, cv2.MORPH_OPEN, kernel_rect)
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel_ellipse)
-        
-        # 轮廓检测
+        cv2.imshow("Step5_Morphology", closed)
+
+        # ------------------ 6. 轮廓检测 ------------------
         contours, hierarchy = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
+        contour_img = cv2.cvtColor(closed, cv2.COLOR_GRAY2BGR)
+        cv2.drawContours(contour_img, contours, -1, (0, 255, 0), 1)
+        cv2.imshow("Step6_Contours", contour_img)
+
         if hierarchy is None or len(hierarchy) == 0 or len(contours) == 0:
-            # 添加调试信息
             cv2.putText(circle_debug_img, "No Contours Found", (10, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             end_time = time.time()
             self.get_logger().debug(f"圆形检测耗时: {(end_time - start_time)*1000:.2f}ms")
             return result_frame, None, None, None, circle_debug_img
-        
+
         hierarchy = hierarchy[0]
-        
-        # 候选圆筛选
+
+        # ------------------ 7. 筛选候选圆 ------------------
         candidate_circles = []
         all_contours_count = len(contours)
-        
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
-            if area < 200:  # 面积筛选
+            if area < 200: 
                 continue
-                
             perimeter = cv2.arcLength(contour, True)
             if perimeter == 0:
                 continue
-                
             circularity = 4 * np.pi * area / (perimeter * perimeter)
-            if circularity < 0.8:  # 圆度筛选
+            if circularity < 0.7:
                 continue
-                
-            # 计算最小外接圆
             (x, y), radius = cv2.minEnclosingCircle(contour)
             candidate_circles.append([int(x), int(y), int(radius), int(area)])
-            
-            # 在调试图像上画出所有候选圆（黄色）
             cv2.circle(circle_debug_img, (int(x), int(y)), int(radius), (0, 255, 255), 2)
-            cv2.putText(circle_debug_img, f"C{i}:R{int(radius)}", 
-                       (int(x)-20, int(y)-int(radius)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
-        
-        # 添加检测统计信息
-        cv2.putText(circle_debug_img, f"Total Contours: {all_contours_count}", (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(circle_debug_img, f"Candidate Circles: {len(candidate_circles)}", (10, 60), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
+
+        cv2.putText(circle_debug_img, f"Total Contours: {all_contours_count}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(circle_debug_img, f"Candidate Circles: {len(candidate_circles)}", (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
         if not candidate_circles:
-            cv2.putText(circle_debug_img, "No Valid Circles Found", (10, 90), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(circle_debug_img, "No Valid Circles Found", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             end_time = time.time()
             self.get_logger().debug(f"圆形检测耗时: {(end_time - start_time)*1000:.2f}ms")
             return result_frame, None, None, None, circle_debug_img
-        
+
         candidate_circles = np.array(candidate_circles)
-        
-        # 找到面积最小的圆作为靶心
+
+        # ------------------ 8. 找到最小面积圆作为靶心 ------------------
         min_area_idx = np.argmin(candidate_circles[:, 3])
         innerest_circle = candidate_circles[min_area_idx]
         innerest_x, innerest_y, innerest_r, innerest_area = innerest_circle
-        
-        # 定义靶心坐标
         target_center = (int(innerest_x), int(innerest_y))
-        
-        # 画出靶心（红色）
         cv2.circle(result_frame, target_center, innerest_r, (0, 0, 255), 2)
         cv2.circle(result_frame, target_center, 3, (0, 0, 255), -1)
         cv2.putText(result_frame, f"靶心: {target_center}", 
                     (target_center[0] + 10, target_center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-        
-        # 在调试图像上高亮靶心
-        cv2.circle(circle_debug_img, target_center, innerest_r, (0, 0, 255), 3)
-        cv2.putText(circle_debug_img, "BULLSEYE", (target_center[0]-30, target_center[1]+innerest_r+20), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        
-        # 筛选目标圆（半径在90-120之间）
+
+        # ------------------ 9. 筛选目标圆 ------------------
         target_circles = []
         for circle in candidate_circles:
             x, y, r, area = circle
             if 90 <= r <= 120:
                 target_circles.append([x, y, r])
-                # 画出候选目标圆（蓝色）
                 cv2.circle(result_frame, (int(x), int(y)), int(r), (255, 0, 0), 2)
                 cv2.circle(result_frame, (int(x), int(y)), 3, (255, 0, 0), -1)
-                # 在调试图像上标记目标圆
-                cv2.circle(circle_debug_img, (int(x), int(y)), int(r), (255, 0, 0), 3)
-                cv2.putText(circle_debug_img, "TARGET", (int(x)-30, int(y)-int(r)-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-        
-        cv2.putText(circle_debug_img, f"Target Circles (R:90-120): {len(target_circles)}", (10, 90), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # 计算最终目标圆
+
+        cv2.putText(circle_debug_img, f"Target Circles (R:90-120): {len(target_circles)}", (10, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        # ------------------ 10. 最终目标圆 ------------------
         target_circle = None
-        target_message = f"p,{target_center[0]},{target_center[1]}"  # 默认发布靶心信息
-        
+        target_message = f"p,{target_center[0]},{target_center[1]}"
+
         if len(target_circles) == 1:
-            target_circle = (int(target_circles[0][0]), int(target_circles[0][1]), int(target_circles[0][2]))
+            target_circle = tuple(target_circles[0])
         elif len(target_circles) > 1:
             target_circles = np.array(target_circles)
             avg_x = int(np.mean(target_circles[:, 0]))
             avg_y = int(np.mean(target_circles[:, 1]))
             avg_r = int(np.mean(target_circles[:, 2]))
             target_circle = (avg_x, avg_y, avg_r)
-        
-        # 画出最终目标圆（绿色）
+
         if target_circle is not None:
             tx, ty, tr = target_circle
             cv2.circle(result_frame, (tx, ty), tr, (0, 255, 0), 3)
@@ -302,17 +288,7 @@ class TargetDetectionNode(Node):
             cv2.putText(result_frame, f"目标圆: ({tx}, {ty}), R={tr}", 
                         (tx - 80, ty - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             target_message = f"c,{tx},{ty},{tr}"
-            
-            # 在调试图像上标记最终目标
-            cv2.circle(circle_debug_img, (tx, ty), tr, (0, 255, 0), 4)
-            cv2.putText(circle_debug_img, "FINAL TARGET", (tx-50, ty+tr+30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(circle_debug_img, f"Final Target Found: ({tx}, {ty})", (10, 120), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        else:
-            cv2.putText(circle_debug_img, f"Using Bullseye: {target_center}", (10, 120), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        
+
         end_time = time.time()
         self.get_logger().debug(f"圆形检测耗时: {(end_time - start_time)*1000:.2f}ms")
         return result_frame, target_center, target_circle, target_message, circle_debug_img
@@ -361,10 +337,10 @@ class TargetDetectionNode(Node):
                 corners = outer_rect['corners']
                 xs = corners[:,0]
                 ys = corners[:,1]
-                x_min = max(xs.min() - 20, 0)
-                x_max = min(xs.max() + 20, cv_image.shape[1])
-                y_min = max(ys.min() - 20, 0)
-                y_max = min(ys.max() + 20, cv_image.shape[0])
+                x_min = max(xs.min() - 10, 0)
+                x_max = min(xs.max() + 10, cv_image.shape[1])
+                y_min = max(ys.min() - 10, 0)
+                y_max = min(ys.max() + 10, cv_image.shape[0])
                 
                 if y_max > y_min and x_max > x_min:
                     roi = raw_img[y_min:y_max, x_min:x_max]
