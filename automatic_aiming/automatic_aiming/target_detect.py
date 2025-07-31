@@ -58,6 +58,11 @@ class TargetDetectionNode(Node):
         # 激光寻找标志，默认关闭
         self.enable_laser_detection = False
         
+        # 仿射变换相关
+        self.affine_matrix = None
+        self.inverse_affine_matrix = None
+        self.laser_expand_pixels = 30  # 可调参数：激光检测区域外扩像素数
+        
         # 多线程相关
         self.frame_queue = Queue(maxsize=2)  # 图像队列，限制大小避免内存堆积
         self.processing_lock = threading.Lock()
@@ -154,31 +159,31 @@ class TargetDetectionNode(Node):
         return cropped
     
     def preprocess_image(self, frame):
-        """统一的图像预处理步骤"""
+        """优化的统一预处理步骤"""
         preprocess_start = time.time()
         
-        # 灰度化
+        # 一次性完成灰度化和高斯模糊
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # 双边滤波（用于圆形检测）
-        bilateral = cv2.bilateralFilter(gray, 9, 75, 75)
+        # 使用高斯模糊替代双边滤波（更快）
+        blurred = cv2.GaussianBlur(gray, (5, 5), 1.5)
         
-        # 形态学处理（用于矩形检测）
-        kernel = np.ones((5, 5), np.uint8)
-        img_close = cv2.morphologyEx(bilateral, cv2.MORPH_CLOSE, kernel)
+        # 合并形态学处理和Canny边缘检测
+        kernel = np.ones((3, 3), np.uint8)
+        morphed = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, kernel)
+        edged = cv2.Canny(morphed, 40, 120)
         
-        # Canny边缘检测（用于矩形检测）
-        edged = cv2.Canny(img_close, 50, 150)
-        
-        # HSV转换（用于激光检测）
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # 只在需要时转换HSV（激光检测开启时）
+        hsv = None
+        if self.enable_laser_detection:
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
         preprocess_time = (time.time() - preprocess_start) * 1000
         self.timing_stats['preprocess'].append(preprocess_time)
         
         return {
             'gray': gray,
-            'bilateral': bilateral,
+            'blurred': blurred,
             'edged': edged,
             'hsv': hsv
         }
@@ -297,160 +302,410 @@ class TargetDetectionNode(Node):
         
         return outer_rect, inner_rect
     
-    def detect_circles_optimized(self, bilateral_image):
-        """优化的圆形检测"""
+    def compute_affine_transform(self, inner_rect):
+        """计算从inner_rect角点到640x480的仿射变换矩阵"""
+        if inner_rect is None:
+            return None, None
+            
+        # 获取inner_rect的四个角点，按顺序排列
+        corners = inner_rect['corners']
+        
+        # 对角点进行排序：左上、右上、右下、左下
+        corners = self.sort_corners(corners)
+        
+        # 目标区域：640x480
+        target_corners = np.float32([
+            [0, 0],      # 左上
+            [640, 0],    # 右上
+            [640, 480],  # 右下
+            [0, 480]     # 左下
+        ])
+        
+        # 计算仿射变换矩阵（使用透视变换获得更好的效果）
+        affine_matrix = cv2.getPerspectiveTransform(corners.astype(np.float32), target_corners)
+        inverse_matrix = cv2.getPerspectiveTransform(target_corners, corners.astype(np.float32))
+        
+        return affine_matrix, inverse_matrix
+    
+    def sort_corners(self, corners):
+        """对角点进行排序：左上、右上、右下、左下"""
+        # 计算质心
+        centroid = np.mean(corners, axis=0)
+        
+        # 按角度排序
+        def angle_from_centroid(point):
+            return np.arctan2(point[1] - centroid[1], point[0] - centroid[0])
+        
+        sorted_corners = sorted(corners, key=angle_from_centroid)
+        
+        # 找到最左上角的点作为起始点
+        top_left_idx = 0
+        min_dist = float('inf')
+        for i, corner in enumerate(sorted_corners):
+            dist = corner[0] + corner[1]  # 到左上角(0,0)的曼哈顿距离
+            if dist < min_dist:
+                min_dist = dist
+                top_left_idx = i
+        
+        # 重新排列，从左上角开始顺时针
+        reordered = sorted_corners[top_left_idx:] + sorted_corners[:top_left_idx]
+        
+        return np.array(reordered)
+    
+    def detect_circles_with_affine_optimized(self, frame, inner_rect):
+        """优化的仿射变换圆形检测"""
         circle_start = time.time()
         
-        height, width = bilateral_image.shape[:2]
-        margin = 100
-        x1, y1 = max(0, margin), max(0, margin)
-        x2, y2 = min(width - margin, width), min(height - margin, height)
-
-        if x2 <= x1 or y2 <= y1:
-            roi = bilateral_image
-        else:
-            roi = bilateral_image[y1:y2, x1:x2]
-
-        # 自适应阈值处理
-        roi_thresh = cv2.adaptiveThreshold(
-            roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY_INV, 11, 2
-        )
-
-        # 将ROI结果映射回全图
-        thresh_full = np.zeros_like(bilateral_image)
-        thresh_full[y1:y2, x1:x2] = roi_thresh
-
-        # 形态学操作
-        kernel_ellipse = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        kernel_rect = np.ones((2, 2), np.uint8)
-        opened = cv2.morphologyEx(thresh_full, cv2.MORPH_OPEN, kernel_rect)
-        closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel_ellipse)
-
-        # 轮廓检测
-        contours, hierarchy = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        if hierarchy is None or len(hierarchy) == 0 or len(contours) == 0:
+        if inner_rect is None:
             circle_time = (time.time() - circle_start) * 1000
             self.timing_stats['circle_detection'].append(circle_time)
-            return None, None
-
-        # 筛选候选圆
+            return None, None, None
+        
+        # 计算仿射变换矩阵
+        affine_matrix, inverse_matrix = self.compute_affine_transform(inner_rect)
+        if affine_matrix is None:
+            circle_time = (time.time() - circle_start) * 1000
+            self.timing_stats['circle_detection'].append(circle_time)
+            return None, None, None
+        
+        # 保存变换矩阵
+        self.affine_matrix = affine_matrix
+        self.inverse_affine_matrix = inverse_matrix
+        
+        # 应用仿射变换
+        warped_image = cv2.warpPerspective(frame, affine_matrix, (640, 480))
+        
+        # 优化的图像处理流程
+        gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
+        
+        # 使用高斯模糊减少噪声
+        blurred = cv2.GaussianBlur(gray, (7, 7), 2.0)
+        
+        # 改进的阈值处理 - 使用Otsu自动阈值
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        
+        # 优化的形态学操作 - 修复断续轮廓
+        # 1. 先用较大的椭圆核进行闭运算连接断续的轮廓
+        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel_close)
+        
+        # 2. 再用小核去除噪声
+        kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        opened = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel_open)
+        
+        # 3. 最后用中等核再次闭运算确保轮廓完整
+        kernel_final = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        final_processed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel_final)
+        
+        # 轮廓检测
+        contours, _ = cv2.findContours(final_processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # 创建显示图像
+        circle_detection_display = cv2.cvtColor(final_processed, cv2.COLOR_GRAY2BGR)
+        
+        if not contours:
+            circle_time = (time.time() - circle_start) * 1000
+            self.timing_stats['circle_detection'].append(circle_time)
+            return None, None, circle_detection_display
+        
+        # 优化的候选圆筛选
         candidate_circles = []
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area < 200: 
+            if area < 150 or area > 50000:  # 调整面积阈值
                 continue
+            
+            # 计算轮廓的凸度和圆度
+            hull = cv2.convexHull(contour)
+            hull_area = cv2.contourArea(hull)
+            if hull_area == 0:
+                continue
+            
+            solidity = area / hull_area
+            if solidity < 0.7:  # 凸度阈值
+                continue
+            
             perimeter = cv2.arcLength(contour, True)
             if perimeter == 0:
                 continue
+            
             circularity = 4 * np.pi * area / (perimeter * perimeter)
-            if circularity < 0.6:
+            if circularity < 0.5:  # 放宽圆度阈值
                 continue
+            
+            # 使用最小外接圆
             (x, y), radius = cv2.minEnclosingCircle(contour)
-            if radius < 30:
+            if radius < 20 or radius > 200:  # 调整半径阈值
                 continue
-            candidate_circles.append([int(x), int(y), int(radius), int(area)])
-
+            
+            # 计算轮廓与最小外接圆的匹配度
+            circle_area = np.pi * radius * radius
+            area_ratio = area / circle_area
+            if area_ratio < 0.6:  # 面积比阈值
+                continue
+            
+            candidate_circles.append([int(x), int(y), int(radius), int(area), circularity])
+            
+            # 在显示图像上绘制候选圆 - 确保坐标为整数
+            center_x, center_y = int(x), int(y)
+            cv2.circle(circle_detection_display, (center_x, center_y), int(radius), (0, 255, 255), 2)
+            
+            # 修复putText坐标类型错误
+            text_x = max(0, center_x - 20)
+            text_y = max(15, center_y + int(radius) + 15)
+            cv2.putText(circle_detection_display, f'C:{circularity:.2f}', 
+                       (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+        
         if not candidate_circles:
             circle_time = (time.time() - circle_start) * 1000
             self.timing_stats['circle_detection'].append(circle_time)
-            return None, None
-
-        candidate_circles = np.array(candidate_circles)
-
-        # 找到最小面积圆作为靶心
-        min_area_idx = np.argmin(candidate_circles[:, 3])
-        innerest_circle = candidate_circles[min_area_idx]
-        innerest_x, innerest_y, innerest_r, innerest_area = innerest_circle
+            return None, None, circle_detection_display
         
-        if innerest_r < 30:
-            circle_time = (time.time() - circle_start) * 1000
-            self.timing_stats['circle_detection'].append(circle_time)
-            return None, None
-            
-        target_center = (int(innerest_x), int(innerest_y))
-
-        # 筛选目标圆
-        target_circles = []
-        for circle in candidate_circles:
-            x, y, r, area = circle
-            if 90 <= r <= 120:
-                target_circles.append([x, y, r])
-
+        candidate_circles = np.array(candidate_circles)
+        
+        # 按圆度和面积综合评分排序
+        scores = candidate_circles[:, 4] * 0.7 + (candidate_circles[:, 3] / np.max(candidate_circles[:, 3])) * 0.3
+        best_idx = np.argmax(scores)
+        
+        # 选择最佳圆作为靶心
+        best_circle = candidate_circles[best_idx]
+        innerest_x, innerest_y, innerest_r = int(best_circle[0]), int(best_circle[1]), int(best_circle[2])
+        
+        # 在仿射变换后的图像坐标系中的目标中心
+        target_center_warped = (innerest_x, innerest_y)
+        
+        # 在显示图像上绘制靶心 - 确保坐标为整数
+        cv2.circle(circle_detection_display, target_center_warped, 8, (0, 0, 255), -1)
+        cv2.circle(circle_detection_display, target_center_warped, innerest_r, (0, 0, 255), 3)
+        
+        # 修复putText坐标类型错误
+        text_x = max(0, innerest_x + 15)
+        text_y = max(15, innerest_y - 15)
+        cv2.putText(circle_detection_display, "Target Center", 
+                   (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        
+        # 筛选目标圆（根据半径范围）
+        target_circles = candidate_circles[(candidate_circles[:, 2] >= 60) & (candidate_circles[:, 2] <= 140)]
+        
         # 最终目标圆
-        target_circle = None
+        target_circle_warped = None
         if len(target_circles) == 1:
-            target_circle = tuple(target_circles[0])
+            target_circle_warped = (int(target_circles[0][0]), int(target_circles[0][1]), int(target_circles[0][2]))
         elif len(target_circles) > 1:
-            target_circles = np.array(target_circles)
-            avg_x = int(np.mean(target_circles[:, 0]))
-            avg_y = int(np.mean(target_circles[:, 1]))
-            avg_r = int(np.mean(target_circles[:, 2]))
-            target_circle = (avg_x, avg_y, avg_r)
-
+            # 选择圆度最好的
+            best_target_idx = np.argmax(target_circles[:, 4])
+            target_circle_warped = (int(target_circles[best_target_idx][0]), 
+                                  int(target_circles[best_target_idx][1]), 
+                                  int(target_circles[best_target_idx][2]))
+        else:
+            # 如果没有合适的目标圆，使用最佳圆
+            target_circle_warped = (innerest_x, innerest_y, innerest_r)
+        
+        # 在显示图像上绘制目标圆
+        if target_circle_warped:
+            tc_x, tc_y, tc_r = target_circle_warped
+            cv2.circle(circle_detection_display, (tc_x, tc_y), tc_r, (0, 255, 0), 3)
+            
+            # 修复putText坐标类型错误
+            text_x = max(0, tc_x - 50)
+            text_y = max(15, tc_y - tc_r - 15)
+            cv2.putText(circle_detection_display, f"Target R={tc_r}", 
+                       (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+        # 逆变换到原图坐标系
+        target_center = None
+        target_circle = None
+        
+        if target_center_warped and self.inverse_affine_matrix is not None:
+            # 逆变换靶心坐标
+            warped_point = np.array([[[float(target_center_warped[0]), float(target_center_warped[1])]]], dtype=np.float32)
+            original_point = cv2.perspectiveTransform(warped_point, self.inverse_affine_matrix)
+            target_center = (int(original_point[0][0][0]), int(original_point[0][0][1]))
+        
+        if target_circle_warped and self.inverse_affine_matrix is not None:
+            # 逆变换目标圆
+            tc_x, tc_y, tc_r = target_circle_warped
+            warped_circle_point = np.array([[[float(tc_x), float(tc_y)]]], dtype=np.float32)
+            original_circle_point = cv2.perspectiveTransform(warped_circle_point, self.inverse_affine_matrix)
+            
+            # 计算逆变换后的半径（近似）
+            warped_radius_point = np.array([[[float(tc_x + tc_r), float(tc_y)]]], dtype=np.float32)
+            original_radius_point = cv2.perspectiveTransform(warped_radius_point, self.inverse_affine_matrix)
+            
+            original_radius = int(np.linalg.norm(
+                original_radius_point[0][0] - original_circle_point[0][0]
+            ))
+            
+            target_circle = (
+                int(original_circle_point[0][0][0]), 
+                int(original_circle_point[0][0][1]), 
+                original_radius
+            )
+        
         circle_time = (time.time() - circle_start) * 1000
         self.timing_stats['circle_detection'].append(circle_time)
         
-        return target_center, target_circle
+        return target_center, target_circle, circle_detection_display
+    
+    def detect_laser_with_expanded_region(self, frame, outer_rect, target_point=None):
+        """在外轮廓外扩区域中检测激光"""
+        laser_start = time.time()
+        
+        if outer_rect is None:
+            laser_time = (time.time() - laser_start) * 1000
+            self.timing_stats['laser_detection'].append(laser_time)
+            return None, None
+        
+        # 获取外轮廓边界框并外扩
+        x, y, w, h = outer_rect['bbox']
+        expand = self.laser_expand_pixels
+        
+        x_min = max(0, x - expand)
+        y_min = max(0, y - expand)
+        x_max = min(frame.shape[1], x + w + expand)
+        y_max = min(frame.shape[0], y + h + expand)
+        
+        # 裁剪扩展区域
+        laser_roi = frame[y_min:y_max, x_min:x_max]
+        
+        if laser_roi.size == 0:
+            laser_time = (time.time() - laser_start) * 1000
+            self.timing_stats['laser_detection'].append(laser_time)
+            return None, None
+        
+        # HSV转换
+        hsv = cv2.cvtColor(laser_roi, cv2.COLOR_BGR2HSV)
+        
+        # 蓝紫色激光的HSV阈值
+        lower_hsv = np.array([25, 3, 208])
+        upper_hsv = np.array([179, 255, 255])
+        mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+        
+        # 形态学操作
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel, iterations=2)
+        
+        # 创建激光检测显示图像
+        laser_detection_display = laser_roi.copy()
+        mask_colored = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        laser_detection_display = cv2.addWeighted(laser_detection_display, 0.7, mask_colored, 0.3, 0)
+        
+        # 查找轮廓
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        laser_point_roi = None
+        best_score = -1
+        
+        h_roi, w_roi = laser_roi.shape[:2]
+        reference_point = (w_roi // 2, h_roi // 2)  # ROI中心作为参考点
+        
+        # 如果有目标点，将其转换到ROI坐标系
+        if target_point:
+            ref_x = target_point[0] - x_min
+            ref_y = target_point[1] - y_min
+            if 0 <= ref_x < w_roi and 0 <= ref_y < h_roi:
+                reference_point = (int(ref_x), int(ref_y))
+        
+        # 筛选符合条件的轮廓
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < 50 or area > 1500:
+                continue
+            
+            # 计算轮廓中心
+            M = cv2.moments(cnt)
+            if M["m00"] == 0:
+                continue
+            x_cnt = int(M["m10"] / M["m00"])
+            y_cnt = int(M["m01"] / M["m00"])
+            
+            # 在显示图像上绘制候选点
+            cv2.circle(laser_detection_display, (x_cnt, y_cnt), 3, (255, 255, 0), -1)
+            
+            # 计算距离基准点的距离
+            dx = x_cnt - reference_point[0]
+            dy = y_cnt - reference_point[1]
+            distance = np.sqrt(dx**2 + dy**2)
+            
+            # 归一化距离
+            max_possible_distance = np.sqrt((w_roi//2)**2 + (h_roi//2)**2)
+            normalized_distance = distance / max_possible_distance
+            
+            # 计算评分
+            area_score = area / 1500
+            distance_score = 1 - normalized_distance
+            score = 0.3 * area_score + 0.7 * distance_score
+            
+            # 更新最优激光点
+            if score > best_score:
+                best_score = score
+                laser_point_roi = (x_cnt, y_cnt)
+        
+        # 将ROI坐标转换回原图坐标
+        laser_point = None
+        if laser_point_roi:
+            laser_point = (laser_point_roi[0] + x_min, laser_point_roi[1] + y_min)
+            
+            # 在显示图像上标记最终选择的激光点 - 修复坐标类型
+            cv2.circle(laser_detection_display, laser_point_roi, 5, (0, 0, 255), -1)
+            
+            # 修复putText坐标类型错误
+            text_x = max(0, laser_point_roi[0] + 10)
+            text_y = max(15, laser_point_roi[1] - 10)
+            cv2.putText(laser_detection_display, "Laser Point", 
+                       (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        
+        # 在显示图像上绘制参考点 - 修复坐标类型
+        cv2.circle(laser_detection_display, reference_point, 3, (255, 255, 255), -1)
+        
+        # 修复putText坐标类型错误
+        text_x = max(0, reference_point[0] + 10)
+        text_y = min(laser_detection_display.shape[0] - 5, reference_point[1] + 10)
+        cv2.putText(laser_detection_display, "Reference", 
+                   (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        
+        laser_time = (time.time() - laser_start) * 1000
+        self.timing_stats['laser_detection'].append(laser_time)
+        
+        return laser_point, laser_detection_display
 
     def process_image(self, cv_image):
-        """处理图像的主函数（多线程优化版）"""
+        """优化的图像处理主函数"""
         total_start_time = time.time()
         self.frame_count += 1
         
         try:
-            # 修复帧率计算逻辑
+            # 帧率计算
             current_time = time.time()
             elapsed_time = current_time - self.fps_start_time
-            if elapsed_time >= 1.0:  # 每秒计算一次FPS
+            if elapsed_time >= 1.0:
                 self.fps = self.frame_count / elapsed_time
                 self.frame_count = 0
                 self.fps_start_time = current_time
             
-            # 1. 统一预处理
+            # 1. 优化的预处理
             processed_data = self.preprocess_image(cv_image)
             
-            # 2. 并行检测任务
-            futures = []
+            # 2. 矩形检测
+            rect_start = time.time()
+            outer_rect, inner_rect = self.detect_nested_rectangles_optimized(processed_data['edged'])
+            rect_time = (time.time() - rect_start) * 1000
+            self.timing_stats['rectangle_detection'].append(rect_time)
             
-            # 提交矩形检测任务
-            rect_future = self.thread_pool.submit(
-                self.detect_nested_rectangles_optimized, 
-                processed_data['edged']
+            # 3. 优化的圆形检测
+            target_center, target_circle, circle_display = self.detect_circles_with_affine_optimized(
+                cv_image, inner_rect
             )
-            futures.append(('rectangle', rect_future))
             
-            # 提交圆形检测任务
-            circle_future = self.thread_pool.submit(
-                self.detect_circles_optimized, 
-                processed_data['bilateral']
-            )
-            futures.append(('circle', circle_future))
-            
-            # 等待检测结果
-            detection_results = {}
-            for task_name, future in futures:
-                try:
-                    detection_results[task_name] = future.result(timeout=0.1)  # 100ms超时
-                except Exception as e:
-                    self.get_logger().warning(f"{task_name} detection timeout or failed: {e}")
-                    detection_results[task_name] = None
-            
-            # 解析结果
-            outer_rect, inner_rect = detection_results.get('rectangle', (None, None))
-            target_center, target_circle = detection_results.get('circle', (None, None))
-            
-            # 更新矩形检测结果缓存（用于下一帧的智能裁剪）
-            if outer_rect is not None:
-                self.last_outer_rect = outer_rect
-            
-            # 3. 激光检测（仅当激光检测标志开启时执行）
+            # 4. 激光检测（仅当开启时）
             blue_laser_point = None
-            if self.enable_laser_detection and target_center is not None:
-                blue_laser_point = self.detect_blue_purple_laser(processed_data['hsv'], target_center)
+            laser_display = None
+            if self.enable_laser_detection and outer_rect is not None and processed_data['hsv'] is not None:
+                blue_laser_point, laser_display = self.detect_laser_with_expanded_region(
+                    cv_image, outer_rect, target_center
+                )
             
-            # 4. 绘制结果和发布数据
+            # 5. 渲染和发布
             render_start = time.time()
             result_image = self.render_results(
                 cv_image, outer_rect, inner_rect, 
@@ -459,14 +714,23 @@ class TargetDetectionNode(Node):
             render_time = (time.time() - render_start) * 1000
             self.timing_stats['rendering'].append(render_time)
             
-            # 5. 发布数据
+            # 6. 发布数据
             self.publish_detection_data(target_center, target_circle, blue_laser_point)
             
-            # 6. 显示结果
+            # 7. 显示结果
             cv2.imshow('Target Detection Result', result_image)
+            
+            # 显示圆形检测结果
+            if circle_display is not None:
+                cv2.imshow('Circle Detection (Affine Transformed)', circle_display)
+            
+            # 显示激光检测结果
+            if laser_display is not None:
+                cv2.imshow('Laser Detection (Expanded Region)', laser_display)
+            
             cv2.waitKey(1)
             
-            # 7. 性能统计
+            # 8. 性能统计
             total_time = (time.time() - total_start_time) * 1000
             self.timing_stats['total'].append(total_time)
             
