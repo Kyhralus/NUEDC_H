@@ -1,5 +1,6 @@
 [console_scripts]
 camera_publisher = automatic_aiming.camera_publisher:main
+gimbal_controller = automatic_aiming.gimbal_controller:main
 main_controller = automatic_aiming.main_controller:main
 speakr_node = automatic_aiming.speakr_node:main
 target_detect = automatic_aiming.target_detect:main

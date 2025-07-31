@@ -3,6 +3,7 @@ setup.cfg
 setup.py
 automatic_aiming/__init__.py
 automatic_aiming/camera_publisher.py
+automatic_aiming/gimbal_controller.py
 automatic_aiming/main_controller.py
 automatic_aiming/speakr_node.py
 automatic_aiming/target_detect.py

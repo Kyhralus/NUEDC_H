@@ -96,6 +96,7 @@ NODES=(
     "camera_publisher"
     "main_controller" 
     "target_detect"
+    "gimbal_controller"
     "uart1_receiver"
     "uart1_sender"
     "uart3_receiver"
@@ -122,6 +123,7 @@ for node in "${NODES[@]}"; do
             "camera_publisher") color="\033[32m" ;;      # 绿色
             "main_controller") color="\033[33m" ;;       # 黄色
             "target_detect") color="\033[31m" ;;         # 红色
+            "gimbal_controller") color="\033[30m" ;;     # 橙色
             "uart1_receiver") color="\033[34m" ;;        # 蓝色
             "uart1_sender") color="\033[35m" ;;          # 紫色
             "uart3_receiver") color="\033[36m" ;;        # 青色

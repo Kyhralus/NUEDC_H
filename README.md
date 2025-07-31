@@ -6,7 +6,7 @@ ros2 pkg create --build-type ament_python automatic_aiming \--dependencies rclpy
 # 编译
 colcon build --symlink-install # 动态编译，不需要重新编译
 # 隔离编译 --- 为了使每个包的编译文件处于同一文件夹
-cd school_competition
+cd 
 colcon build --merge-install
 # # 终止所有 ros2 进程
 # pkill -9 -f "ros2"
