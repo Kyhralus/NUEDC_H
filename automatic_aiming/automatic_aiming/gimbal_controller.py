@@ -54,7 +54,7 @@ class GimbalController(Node):
             
             # 使用正则表达式解析数据
             # 匹配 p,x,y 或 c,x,y,r 格式
-            pattern = r'^([pc]),(\d+),(\d+)(?:,(\d+))?$'
+            pattern = r'^([p]),(\d+),(\d+)(?:,(\d+))?$'
             match = re.match(pattern, data_str)
             
             if match:

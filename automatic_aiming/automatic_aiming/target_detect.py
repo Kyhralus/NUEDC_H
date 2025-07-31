@@ -160,8 +160,8 @@ class TargetDetectionNode(Node):
         reference_point = target_point if target_point is not None else (w // 2, h // 2)
         
         # 蓝紫色激光的HSV阈值
-        lower_hsv = np.array([117, 45, 159])
-        upper_hsv = np.array([168, 255, 255])
+        lower_hsv = np.array([25, 3, 208])
+        upper_hsv = np.array([179, 255, 255])
         mask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
         
         # 形态学操作
@@ -314,7 +314,7 @@ class TargetDetectionNode(Node):
             if perimeter == 0:
                 continue
             circularity = 4 * np.pi * area / (perimeter * perimeter)
-            if circularity < 0.7:
+            if circularity < 0.6:
                 continue
             (x, y), radius = cv2.minEnclosingCircle(contour)
             if radius < 30:
@@ -463,25 +463,25 @@ class TargetDetectionNode(Node):
             circle_detected = True
             
             if target_center:
-                cv2.circle(result_image, target_center, 8, (0, 0, 255), 3)
-                cv2.circle(result_image, target_center, 3, (0, 0, 255), -1)
-                cv2.putText(result_image, f"靶心: ({target_center[0]}, {target_center[1]})", 
+                cv2.circle(result_image, target_center, 1, (0, 0, 255), 3)
+                cv2.circle(result_image, target_center, 1, (0, 0, 255), -1)
+                cv2.putText(result_image, f"center: ({target_center[0]}, {target_center[1]})", 
                            (target_center[0]+15, target_center[1]-15), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             
             if target_circle:
                 tc_x, tc_y, tc_r = target_circle
                 cv2.circle(result_image, (tc_x, tc_y), tc_r, (0, 255, 0), 3)
-                cv2.circle(result_image, (tc_x, tc_y), 5, (0, 255, 0), -1)
-                cv2.putText(result_image, f"目标圆: ({tc_x}, {tc_y}), R={tc_r}", 
+                cv2.circle(result_image, (tc_x, tc_y), 1, (0, 255, 0), -1)
+                cv2.putText(result_image, f"target_circle: ({tc_x}, {tc_y}), R={tc_r}", 
                            (tc_x-100, tc_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # 绘制激光点
         if blue_laser_point:
             blue_laser_detected = True
-            cv2.circle(result_image, blue_laser_point, 6, (255, 0, 0), 3)
-            cv2.circle(result_image, blue_laser_point, 2, (255, 0, 0), -1)
-            cv2.putText(result_image, f"蓝紫激光: ({blue_laser_point[0]}, {blue_laser_point[1]})", 
+            cv2.circle(result_image, blue_laser_point, 1, (255, 0, 0), 3)
+            cv2.circle(result_image, blue_laser_point, 1, (255, 0, 0), -1)
+            cv2.putText(result_image, f"laser: ({blue_laser_point[0]}, {blue_laser_point[1]})", 
                        (blue_laser_point[0]+15, blue_laser_point[1]+15), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
             
@@ -534,7 +534,7 @@ class TargetDetectionNode(Node):
             err_x = blue_laser_point[0] - target_center[0]
             err_y = blue_laser_point[1] - target_center[1]
             error_msg = String()
-            error_msg.data = f"blue_laser,{err_x},{err_y}"
+            error_msg.data = f"l,{err_x},{err_y}"
             self.target_publisher.publish(error_msg)
     
     def print_performance_stats(self):

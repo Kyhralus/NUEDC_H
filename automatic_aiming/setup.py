@@ -31,6 +31,8 @@ setup(
             'target_detect = automatic_aiming.target_detect:main',
             # 云台控制器节点
             'gimbal_controller = automatic_aiming.gimbal_controller:main',
+            # 激光参数调节节点
+            'laser_tuner = automatic_aiming.laser_tuner:main',
             # 单片机通信 uart 节点
             'uart1_receiver = automatic_aiming.uart1_receiver:main',
             'uart1_sender = automatic_aiming.uart1_sender:main',
