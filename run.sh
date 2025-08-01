@@ -55,11 +55,9 @@ cleanup() {
         fi
     done
     
-    # 额外清理：杀死所有ROS2相关进程
-    pkill -f "ros2 run automatic_aiming" 2>/dev/null || true
-    
     log_info "所有节点已关闭"
-    exit 0
+    read -p "所有节点已关闭，按回车键退出..."
+    exit 0 
 }
 
 # 设置信号处理
@@ -96,7 +94,7 @@ NODES=(
     "main_controller" 
     "target_detect"
      # "laser_tuner"
-    "ekf_filter_node"  # 扩展卡尔曼滤波器节点
+    # "ekf_filter_node"  # 扩展卡尔曼滤波器节点
     "gimbal_controller"
     "uart1_receiver"
     "uart1_sender"
@@ -124,7 +122,7 @@ for node in "${NODES[@]}"; do
             
             "main_controller") color="\033[33m" ;;       # 黄色
             "target_detect") color="\033[31m" ;;         # 红色
-            "ekf_filter_node") color="\033[32m" ;;      # 绿色
+            # "ekf_filter_node") color="\033[32m" ;;      # 绿色
             # "laser_tuner") color="\033[32m" ;;      # 绿色
             "gimbal_controller") color="\033[30m" ;;     # 橙色
             "uart1_receiver") color="\033[34m" ;;        # 蓝色

@@ -10,6 +10,7 @@ import threading
 import time
 import cv2
 import numpy as np
+from periphery import GPIO
 
 # 任务状态枚举（与题目要求对应）
 class TaskState:
@@ -27,6 +28,12 @@ class AimingController(Node):
     def __init__(self):
         super().__init__('aiming_controller')
         
+        # 初始化GPIO
+        self.gpio_pin = 59 # pin16
+
+        # Open GPIO /dev/gpiochip0 line 12 with output direction
+        self.laser_gpio = GPIO("/dev/gpiochip0", 16, "out")
+        self.laser_gpio.write(False)  # 初始化为低电平
         # 回调组设置
         self.reentrant_group = ReentrantCallbackGroup()
         self.exclusive_group = MutuallyExclusiveCallbackGroup()
@@ -47,6 +54,33 @@ class AimingController(Node):
         self.init_communications()
         
         self.get_logger().info("瞄准系统主控节点初始化完成")
+
+        # 创建服务端
+        self.srv = self.create_service(SetBool, 'shoot_status', self.shoot_status_callback)
+        self.get_logger().info("瞄准系统主控节点初始化完成，服务端已创建：/shoot_status")
+    
+    def shoot_status_callback(self, request, response):
+        """
+        服务端回调函数：接收客户端bool消息
+        True -> 打靶成功，点亮激光
+        False -> 熄灭激光
+        """
+        try:
+            if request.data:
+                self.laser_gpio.write(True)  # 点亮激光
+                self.get_logger().info("打靶成功信号接收，激光点亮")
+                response.success = True
+                response.message = "打靶成功，激光已点亮"
+            else:
+                self.laser_gpio.write(False)  # 关闭激光
+                self.get_logger().info("打靶失败信号接收，激光关闭")
+                response.success = True
+                response.message = "打靶失败，激光已关闭"
+        except Exception as e:
+            response.success = False
+            response.message = f"处理请求出错: {e}"
+        return response
+
 
     def init_communications(self):
         """初始化ROS2通信接口"""

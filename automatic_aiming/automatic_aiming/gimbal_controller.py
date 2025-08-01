@@ -4,6 +4,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from std_srvs.srv import SetBool
 import re
 
 class GimbalController(Node):
@@ -13,11 +14,16 @@ class GimbalController(Node):
         super().__init__('gimbal_controller')
         
         # 图像中心配置 - 可灵活修改
-        self.image_width = 640
-        self.image_height = 480
-        self.image_center_x = self.image_width // 2   # 320
-        self.image_center_y = self.image_height // 2  # 240
+        self.image_width = 800
+        self.image_height = 600
+        self.image_center_x = self.image_width // 2   # 400
+        self.image_center_y = self.image_height // 2  # 300
         
+        # 阈值配置
+        self.error_threshold = 5           # 最大允许误差
+        self.success_required_count = 10   # 连续成功次数要求
+        self.success_counter = 0           # 计数器
+
         # 创建订阅者 - 订阅目标数据
         self.target_subscriber = self.create_subscription(
             String,
@@ -33,19 +39,54 @@ class GimbalController(Node):
             10
         )
         
+        # 创建客户端
+        self.shoot_client = self.create_client(SetBool, '/shoot_status')
+        while not self.shoot_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("等待服务端 /shoot_status 启动...")
+
         # 误差统计
         self.error_count = 0
         self.last_target_center = None
         
+        # 存储最新的云台控制指令
+        self.latest_gimbal_command = None
+        
+        # 创建30Hz定时器用于发送云台控制指令
+        self.gimbal_timer = self.create_timer(0.03, self.gimbal_timer_callback)
+
         self.get_logger().info(f'云台控制器节点已启动')
         self.get_logger().info(f'图像中心设置为: ({self.image_center_x}, {self.image_center_y})')
         self.get_logger().info(f'订阅话题: /target_data')
-        self.get_logger().info(f'发布话题: /uart1_sender_topic')
+        self.get_logger().info(f'发布话题: /uart1_sender_topic (30Hz)')
+        self.get_logger().info(f'控制频率: 30Hz')
     
+
+    def gimbal_timer_callback(self):
+        """30Hz定时器回调函数，用于发送云台控制指令"""
+        if self.latest_gimbal_command is not None:
+            cmd_msg = String()
+            cmd_msg.data = self.latest_gimbal_command
+            self.gimbal_publisher.publish(cmd_msg)
+            self.get_logger().debug(f'发送云台指令: {self.latest_gimbal_command.strip()}')
+
+    def call_shoot_service(self, success: bool):
+        """调用服务端，发送打靶成功信号"""
+        req = SetBool.Request()
+        req.data = success
+        future = self.shoot_client.call_async(req)
+        future.add_done_callback(self.shoot_response_callback)
+
+    def shoot_response_callback(self, future):
+        try:
+            response = future.result()
+            self.get_logger().info(f"服务端响应: success={response.success}, message='{response.message}'")
+        except Exception as e:
+            self.get_logger().error(f"调用服务端失败: {e}")
+
     def parse_target_data(self, data_str):
         """
         解析目标数据
-        输入格式: "p,272,252" 或 "c,272,252,50"
+        输入格式: "p,272,252" 
         返回: (x, y) 或 None
         """
         try:
@@ -64,9 +105,9 @@ class GimbalController(Node):
                 
                 self.get_logger().debug(f'解析目标数据成功: 类型={data_type}, 坐标=({x}, {y})')
                 return (x, y)
-            else:
-                self.get_logger().warning(f'目标数据格式不正确: {data_str}')
-                return None
+            # else:
+            #     self.get_logger().warning(f'目标数据格式不正确: {data_str}')
+            #     return None
                 
         except Exception as e:
             self.get_logger().error(f'解析目标数据时出错: {data_str}, 错误: {str(e)}')
@@ -101,42 +142,40 @@ class GimbalController(Node):
     def target_callback(self, msg):
         """目标数据回调函数"""
         try:
-            # 解析目标数据
             target_center = self.parse_target_data(msg.data)
             
             if target_center is None:
                 self.error_count += 1
+                self.success_counter = 0
                 self.get_logger().warning(f'无法解析目标数据: {msg.data}')
                 return
             
-            # 计算误差
             x_error, y_error = self.calculate_error(target_center)
-            
             if x_error is None or y_error is None:
-                self.get_logger().error('计算误差失败')
+                self.success_counter = 0
                 return
             
-            # 格式化并发布云台控制指令
-            gimbal_command = self.format_gimbal_command(x_error, y_error)
+            # 误差判定
+            if abs(x_error) < self.error_threshold and abs(y_error) < self.error_threshold:
+                self.success_counter += 1
+                if self.success_counter >= self.success_required_count:
+                    self.get_logger().info("连续命中阈值满足，发送打靶成功信号")
+                    self.call_shoot_service(True)
+                    self.success_counter = 0
+            else:
+                self.success_counter = 0
             
-            # 发布指令
-            cmd_msg = String()
-            cmd_msg.data = gimbal_command
-            self.gimbal_publisher.publish(cmd_msg)
+            # 更新最新的云台控制指令（将由定时器发送）
+            self.latest_gimbal_command = self.format_gimbal_command(x_error, y_error)
             
-            # 记录信息
             self.last_target_center = target_center
-            target_x, target_y = target_center
-            
             self.get_logger().info(
-                f'目标: ({target_x}, {target_y}) | '
-                f'中心: ({self.image_center_x}, {self.image_center_y}) | '
-                f'误差: ({x_error:+d}, {y_error:+d}) | '
-                f'指令: {gimbal_command}'
+                f'目标: {target_center} | 误差: ({x_error:+d},{y_error:+d}) | 成功计数:{self.success_counter}'
             )
             
         except Exception as e:
             self.error_count += 1
+            self.success_counter = 0
             self.get_logger().error(f'处理目标数据时出错: {str(e)}')
     
     def update_image_center(self, width, height):
