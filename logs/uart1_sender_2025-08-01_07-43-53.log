@@ -1,2 +1,0 @@
-[2025-08-01 07:44:01] [uart1_sender] [INFO] [1754005441.986548288] [uart1_sender]: 创建uart1_sender_topic订阅方成功！
-[2025-08-01 07:44:01] [uart1_sender] [INFO] [1754005441.987113821] [uart1_sender]: uart1_sender @ /dev/ttyS1 Buad: 115200 init success

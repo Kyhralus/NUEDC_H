@@ -1,2 +1,0 @@
-[2025-08-01 07:43:58] [ekf_filter_node] [INFO] [1754005438.300063430] [ekf_filter_node]: EKF Filter Node Started with Plot Saving Every 3 Seconds
-[2025-08-01 07:43:58] [ekf_filter_node] [INFO] [1754005438.300607380] [ekf_filter_node]: Plot save directory: /home/orangepi/ros2_workspace/NUEDC_H/ekf_plots
