@@ -9,6 +9,7 @@ automatic_aiming/main_controller.py
 automatic_aiming/ref.py
 automatic_aiming/speakr_node.py
 automatic_aiming/target_detect.py
+automatic_aiming/test_gpio.py
 automatic_aiming/uart0_receiver.py
 automatic_aiming/uart0_sender.py
 automatic_aiming/uart1_receiver.py

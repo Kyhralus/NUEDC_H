@@ -14,7 +14,7 @@ echo "清理旧日志文件..."
 rm -f "${LOGS_DIR}"/*.log
 
 # 获取当前时间戳
-TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
+TIMESTAMP=$(date '%H-%M-%S')
 MAIN_LOG="${LOGS_DIR}/main_${TIMESTAMP}.log"
 
 # 全局进程数组
@@ -22,12 +22,12 @@ declare -a ALL_PIDS=()
 
 # 日志函数
 log_info() {
-    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
+    local msg="[$(date '%H:%M:%S')] [INFO] $1"
     echo "$msg" | tee -a "${MAIN_LOG}"
 }
 
 log_error() {
-    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1"
+    local msg="[$(date '%H:%M:%S')] [ERROR] $1"
     echo "$msg" | tee -a "${MAIN_LOG}"
 }
 
@@ -45,7 +45,7 @@ cleanup() {
     done
     
     # 等待进程结束
-    sleep 3
+    sleep 2
     
     # 强制杀死剩余进程
     for pid in "${ALL_PIDS[@]}"; do
@@ -56,8 +56,6 @@ cleanup() {
     done
     
     log_info "所有节点已关闭"
-    read -p "所有节点已关闭，按回车键退出..."
-    exit 0 
 }
 
 # 设置信号处理
@@ -100,7 +98,7 @@ NODES=(
     "uart1_sender"
     "uart3_receiver"
     "uart3_sender"
-    "speakr_node"
+    # "speakr_node"
     # "uart0_receiver"  # 注释掉
     # "uart0_sender"    # 注释掉
 )
@@ -126,10 +124,10 @@ for node in "${NODES[@]}"; do
             # "laser_tuner") color="\033[32m" ;;      # 绿色
             "gimbal_controller") color="\033[30m" ;;     # 橙色
             "uart1_receiver") color="\033[34m" ;;        # 蓝色
-            "uart1_sender") color="\033[35m" ;;          # 紫色
+            "uart1_sender") color="\033[34m" ;;          # 蓝色
             "uart3_receiver") color="\033[36m" ;;        # 青色
-            "uart3_sender") color="\033[37m" ;;          # 白色
-            "speakr_node") color="\033[90m" ;;           # 灰色
+            "uart3_sender") color="\033[36m" ;;          # 青色
+            # "speakr_node") color="\033[90m" ;;           # 灰色
             *) color="\033[0m" ;;                        # 默认色
         esac
         
@@ -182,4 +180,4 @@ while true; do
     sleep 2
 done
 
-cleanup
+cleanup()

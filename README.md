@@ -9,7 +9,7 @@ colcon build --symlink-install # 动态编译，不需要重新编译
 cd 
 colcon build --merge-install
 # # 终止所有 ros2 进程
-# pkill -9 -f "ros2"
+pkill -9 -f "ros2"
 
 # 动态编译，不需要自己重新编译
 colcon build --packages-select <package name> --symlink-install   # 不能同时用
@@ -19,6 +19,8 @@ rm -rf build install log
 
 # 查看视频设备
 ls /dev/video*
+
+
 # git 取消代理
 # 取消 HTTP 代理设置
 git config --global --unset http.proxy
@@ -51,10 +53,13 @@ ros2 run automatic_aiming main_controller
 
 ros2 run automatic_aiming laser_detect
 
+# 安装gpio
+git clone --recursive https://github.com/orangepi-xunlong/wiringOP-Python -b next
+
 ## 日志配置说明
 为了确保节点内部的日志信息正确保存，需要设置以下环境变量：
 
-```bash`
+```bash
 # 设置日志级别为DEBUG以显示更多信息
 export RCUTILS_LOGGING_SEVERITY=DEBUG
 export RCUTILS_LOGGING_USE_STDOUT=1
@@ -69,6 +74,8 @@ ros2 launch automatic_aiming full_system.launch.py --log-level debug 2>&1 | tee 
 - detect_contours(): 轮廓检测函数 - 显示检测到的轮廓数量、有效轮廓、最大面积、中心位置
 
 # # NUEDC_H
+
+开启ekf 会导致帧率 30 --> 15-20
 
 帮我把检测圆的层级改掉，改成检测所有轮廓，不要层级，然后进行圆度检测，显示检测到的圆，记作candidate_circles,保留它们的中心和半径，然后选取其中最小面积的圆作为minist_circle,其中半径在90-120的圆作为一个数组，可能有多个圆，然后把这个数组的圆心和半径都取均值作为target_circle，用蓝色画出minist_circle以及它的圆心，用红色画出target_circle以及它的圆心。
 
@@ -108,11 +115,21 @@ ros2 launch automatic_aiming full_system.launch.py --log-level debug 2>&1 | tee 
         # 4. 将 target_circle 画到 roi_region 上，并画出圆形，显示帧率，并用另一种颜色 画出visual_target_point
     '''
 
+仿射变换采用的是内轮廓inner_rect的角点，“矩形实际距离为25.5X17.5，我要检测的圆心target_center就在实际矩形的正中心，需要检测target_circle刚好是以target_center为中心的半径为6cm的圆”这个是实际上相对内轮廓而言。此外，仿射变换后进行滤波效果太差，把原本微弱的环形轮廓直接滤没了。此外，添加一个仿射变换的结果，cv2.imshow出来
+
 这个帧率的计算逻辑有问题，同时给我加个标志来管理激光的寻找，默认关闭，现在也关闭。在最终图像中显示出图像的中心，并显示target_center和图像中心的偏差值。另外裁剪图像改成1290X720，找到矩形后则变成矩形向外扩30像素，没找到就还是1280X720。
 
 矩形检测变得很稳定，可以保留相关部分，但是对圆的检测，有些滤波太过了，导致变得锯齿状明显，同时边缘被模糊，白色占比很大，但不是边缘。有一个先验条件时，仿射变换后的矩形实际距离为25.5X17.5，我要检测的圆心target_center就在实际矩形的正中心，需要检测target_circle刚好是以target_center为中心的半径为6cm的圆。
 
-仿射变换采用的是内轮廓inner_rect的角点，“矩形实际距离为25.5X17.5，我要检测的圆心target_center就在实际矩形的正中心，需要检测target_circle刚好是以target_center为中心的半径为6cm的圆”这个是实际上相对内轮廓而言。此外，仿射变换后进行滤波效果太差，把原本微弱的环形轮廓直接滤没了。此外，添加一个仿射变换的结果，cv2.imshow出来
+
+
+@TODO
+ekf_
+依旧不会显示画面，继续更改，并每3s绘制并保存一次轨迹，以及得到的点和过滤以及预测点的图。
+
+warp
+用缓存机制 (cached_circle_mapping)，并且由于仿射变换后的圆基本固定，所以所有仿射变换后的圆采样的点的坐标基本固定，也即仿射变换后采样点的坐标固定，随着时间的变化只有仿射变换矩阵在变，因此我对采样点矩阵我可以在前几次就保存好，之后根据不同的仿射变换矩阵，直接根据开始的时间对应上采样点的坐标，再将该坐标进行逆仿射变换即可得到此刻原始图像上的点。
+
 
 ----------
 ## 节点介绍
@@ -120,7 +137,7 @@ Note:
 - [ ] is holding
 - [/] is doing
 - [X] is done
-
+开启ekf 会导致帧率 30 --> 15-20
 ---
 
 [X] ROS2环境配置与工作空间创建
@@ -145,10 +162,3 @@ Note:
 
 [X] GUI界面节点
     用 pytk 写一个简易调参界面，完成对阈值的调整，任务的选择，任务结果的显示
-
-@TODO
-ekf_
-依旧不会显示画面，继续更改，并每3s绘制并保存一次轨迹，以及得到的点和过滤以及预测点的图。
-
-warp
-用缓存机制 (cached_circle_mapping)，并且由于仿射变换后的圆基本固定，所以所有仿射变换后的圆采样的点的坐标基本固定，也即仿射变换后采样点的坐标固定，随着时间的变化只有仿射变换矩阵在变，因此我对采样点矩阵我可以在前几次就保存好，之后根据不同的仿射变换矩阵，直接根据开始的时间对应上采样点的坐标，再将该坐标进行逆仿射变换即可得到此刻原始图像上的点。

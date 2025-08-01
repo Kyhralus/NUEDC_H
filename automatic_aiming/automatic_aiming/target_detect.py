@@ -72,13 +72,11 @@ class TargetDetectionNode(Node):
         self.timing_stats = collections.defaultdict(list)
         self.frame_count = 0
         
-        # 添加时间平滑机制
-        self.last_outer_rect = None
-        self.last_inner_rect = None
-        self.last_target_center = None
-        self.last_target_circle = None
-        self.detection_confidence = {'rect': 0, 'circle': 0}
-        self.max_confidence = 5  # 最大置信度
+        # 检测相关变量
+        self.outer_rect = None
+        self.inner_rect = None
+        self.target_center = None
+        self.target_circle = None
         
         # 启动图像获取线程
         self.capture_thread = threading.Thread(target=self.capture_frames, daemon=True)
@@ -212,11 +210,11 @@ class TargetDetectionNode(Node):
         rectangles = []
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
-            if area < 800:  # 降低面积阈值以提高检测敏感度
+            if area < 2000:  # 降低面积阈值以提高检测敏感度
                 continue
                 
             # 使用更宽松的多边形逼近
-            epsilon = 0.02 * cv2.arcLength(contour, True)  # 从0.03降低到0.02
+            epsilon = 0.04 * cv2.arcLength(contour, True)  # 从0.03降低到0.02
             approx = cv2.approxPolyDP(contour, epsilon, True)
             
             # 允许4-6个顶点的多边形，增加检测成功率
@@ -261,24 +259,13 @@ class TargetDetectionNode(Node):
                 
                 if is_nested:
                     area_ratio = inner['area'] / outer['area']
-                    if 0.4 < area_ratio < 0.95:  # 更宽松的面积比
+                    if 0.6 < area_ratio < 0.9:  # 更宽松的面积比
                         outer_rect = outer
                         inner_rect = inner
-                        self.detection_confidence['rect'] = min(self.max_confidence, 
-                                                              self.detection_confidence['rect'] + 1)
                         break
             if outer_rect is not None:
                 break
-        
-        # 如果没有检测到，降低置信度，但使用上一次的结果
-        if outer_rect is None:
-            self.detection_confidence['rect'] = max(0, self.detection_confidence['rect'] - 1)
-            if self.detection_confidence['rect'] > 0 and self.last_outer_rect is not None:
-                outer_rect = self.last_outer_rect
-                inner_rect = self.last_inner_rect
-        else:
-            self.last_outer_rect = outer_rect
-            self.last_inner_rect = inner_rect
+
         
         rect_time = (time.time() - rect_start) * 1000
         self.timing_stats['rectangle_detection'].append(rect_time)
@@ -340,13 +327,6 @@ class TargetDetectionNode(Node):
         circle_start = time.time()
         
         if inner_rect is None:
-            # 尝试使用上一次的结果
-            if self.detection_confidence['circle'] > 0:
-                self.detection_confidence['circle'] -= 1
-                circle_time = (time.time() - circle_start) * 1000
-                self.timing_stats['circle_detection'].append(circle_time)
-                return self.last_target_center, self.last_target_circle, None
-            
             circle_time = (time.time() - circle_start) * 1000
             self.timing_stats['circle_detection'].append(circle_time)
             return None, None, None
@@ -380,7 +360,7 @@ class TargetDetectionNode(Node):
         # 目标中心应该在仿射变换后图像的正中心
         expected_center = (320, 240)  # 640x480的中心
         
-        self.get_logger().info(f"Expected circle: center={expected_center}, radius={expected_radius_pixels}px")
+        # self.get_logger().info(f"Expected circle: center={expected_center}, radius={expected_radius_pixels}px")
         
         # 简化的图像处理流程 - 减少过度滤波
         gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
@@ -403,17 +383,17 @@ class TargetDetectionNode(Node):
         # 选择白色占比在15%-40%之间的结果
         if 0.03 <= white_ratio_otsu <= 0.2:
             thresh = thresh_otsu
-            self.get_logger().info(f"Using Otsu threshold, white ratio: {white_ratio_otsu:.3f}")
+            # self.get_logger().info(f"Using Otsu threshold, white ratio: {white_ratio_otsu:.3f}")
         elif 0.03 <= white_ratio_mean <= 0.2:
             thresh = thresh_mean
-            self.get_logger().info(f"Using mean threshold, white ratio: {white_ratio_mean:.3f}")
+            # self.get_logger().info(f"Using mean threshold, white ratio: {white_ratio_mean:.3f}")
         else:
             # 如果都不合适，使用白色占比更接近25%的
             if abs(white_ratio_otsu - 0.1) < abs(white_ratio_mean - 0.1):
                 thresh = thresh_otsu
             else:
                 thresh = thresh_mean
-            self.get_logger().info(f"Fallback threshold, Otsu ratio: {white_ratio_otsu:.3f}, Mean ratio: {white_ratio_mean:.3f}")
+            # self.get_logger().info(f"Fallback threshold, Otsu ratio: {white_ratio_otsu:.3f}, Mean ratio: {white_ratio_mean:.3f}")
         
         # 最小化的形态学操作 - 只去除明显的噪声
         kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -436,12 +416,6 @@ class TargetDetectionNode(Node):
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
         
         if not contours:
-            self.detection_confidence['circle'] = max(0, self.detection_confidence['circle'] - 1)
-            if self.detection_confidence['circle'] > 0:
-                circle_time = (time.time() - circle_start) * 1000
-                self.timing_stats['circle_detection'].append(circle_time)
-                return self.last_target_center, self.last_target_circle, circle_detection_display
-            
             circle_time = (time.time() - circle_start) * 1000
             self.timing_stats['circle_detection'].append(circle_time)
             return None, None, circle_detection_display
@@ -569,13 +543,10 @@ class TargetDetectionNode(Node):
                 original_radius
             )
                
-        # 更新置信度和上一次结果
+        # 更新目标中心和圆形
         if target_center or target_circle:
-            self.detection_confidence['circle'] = min(self.max_confidence, self.detection_confidence['circle'] + 1)
-            self.last_target_center = target_center
-            self.last_target_circle = target_circle
-        else:
-            self.detection_confidence['circle'] = max(0, self.detection_confidence['circle'] - 1)
+            self.target_center = target_center
+            self.target_circle = target_circle
         
         circle_time = (time.time() - circle_start) * 1000
         self.timing_stats['circle_detection'].append(circle_time)
@@ -675,16 +646,14 @@ class TargetDetectionNode(Node):
         # 绘制矩形
         if outer_rect and inner_rect:
             rect_detected = True
-            cv2.drawContours(result_image, [outer_rect['approx']], 0, (0, 255, 0), 3)
-            cv2.drawContours(result_image, [inner_rect['approx']], 0, (255, 0, 0), 3)
-            cv2.circle(result_image, outer_rect['center'], 5, (0, 0, 255), -1)
-            cv2.circle(result_image, inner_rect['center'], 5, (0, 0, 255), -1)
+            cv2.drawContours(result_image, [outer_rect['approx']], 0, (0, 255, 0), 2)
+            cv2.drawContours(result_image, [inner_rect['approx']], 0, (255, 0, 0), 2)
             
             cv2.putText(result_image, "Outer Rect", 
-                       (outer_rect['center'][0]-50, outer_rect['center'][1]-20), 
+                       (outer_rect['bbox'][0], outer_rect['bbox'][1]-10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.putText(result_image, "Inner Rect", 
-                       (inner_rect['center'][0]-50, inner_rect['center'][1]-20), 
+                       (inner_rect['bbox'][0], inner_rect['bbox'][1]-10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
         
         # 绘制圆形目标
@@ -692,8 +661,7 @@ class TargetDetectionNode(Node):
             circle_detected = True
             
             if target_center:
-                cv2.circle(result_image, target_center, 1, (0, 0, 255), 3)
-                cv2.circle(result_image, target_center, 1, (0, 0, 255), -1)
+                cv2.circle(result_image, target_center, 5, (0, 0, 255), -1)  # 靶心点
                 cv2.putText(result_image, f"Target Center: ({target_center[0]}, {target_center[1]})", 
                            (target_center[0]+15, target_center[1]-15), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
@@ -707,10 +675,7 @@ class TargetDetectionNode(Node):
             
             if target_circle:
                 tc_x, tc_y, tc_r = target_circle
-                cv2.circle(result_image, (tc_x, tc_y), tc_r, (0, 255, 0), 3)
-                cv2.circle(result_image, (tc_x, tc_y), 1, (0, 255, 0), -1)
-                cv2.putText(result_image, f"Target Circle: ({tc_x}, {tc_y}), R={tc_r}", 
-                           (tc_x-100, tc_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                cv2.circle(result_image, (tc_x, tc_y), tc_r, (0, 255, 0), 2)  # 目标圆，线宽为2
         
         # 绘制激光点（仅当激光检测开启时）
         if blue_laser_point and self.enable_laser_detection:
@@ -734,8 +699,8 @@ class TargetDetectionNode(Node):
         cv2.putText(result_image, f"Frame: {self.frame_count}", (10, 60), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
-        # 添加置信度显示
-        cv2.putText(result_image, f"Confidence - Rect:{self.detection_confidence['rect']}, Circle:{self.detection_confidence['circle']}", 
+        # 显示检测状态
+        cv2.putText(result_image, f"Detection Status: {'Detected' if target_center else 'Not Detected'}", 
                    (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
         
         # 激光检测状态

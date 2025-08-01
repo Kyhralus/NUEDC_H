@@ -4,8 +4,14 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from std_srvs.srv import SetBool
+# Removed SetBool import
 import re
+import time
+import wiringpi
+from wiringpi import GPIO
+import time
+import wiringpi
+from wiringpi import GPIO
 
 class GimbalController(Node):
     """云台控制器节点"""
@@ -20,9 +26,29 @@ class GimbalController(Node):
         self.image_center_y = self.image_height // 2  # 300
         
         # 阈值配置
-        self.error_threshold = 5           # 最大允许误差
-        self.success_required_count = 10   # 连续成功次数要求
-        self.success_counter = 0           # 计数器
+        self.error_threshold = 5           # 最大允许误差 (用于云台控制的误差判定)
+        self.success_required_count = 10   # 连续成功次数要求 (用于云台控制的成功计数)
+        self.success_counter = 0           # 计数器 (用于云台控制的成功计数)
+
+        # 激光开启判定配置
+        self.laser_error_threshold = 15     # 激光开启的最大允许误差
+        self.laser_success_required_count = 5 # 激光开启所需的连续成功次数
+        self.laser_counter = 0             # 激光计数器
+        
+        # 激光控制相关配置
+        self.laser_pin = 9                # GPIO9用于控制激光 (根据用户提供的wiringpi示例)
+        
+        # 激光状态管理
+        self.laser_mode = "auto_off"      # 激光模式: "auto_off" 或 "continuous"
+        self.laser_opened = False         # 激光状态标志
+        self.laser_shooting_time = 1.0    # 激光打开时间(1.0s)
+        self.laser_timer = None           # 激光定时器
+        
+        # 初始化GPIO
+        wiringpi.wiringPiSetup()
+        wiringpi.pinMode(self.laser_pin, GPIO.OUTPUT)
+        wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)  # 初始状态为关闭
+        
 
         # 创建订阅者 - 订阅目标数据
         self.target_subscriber = self.create_subscription(
@@ -39,10 +65,7 @@ class GimbalController(Node):
             10
         )
         
-        # 创建客户端
-        self.shoot_client = self.create_client(SetBool, '/shoot_status')
-        while not self.shoot_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("等待服务端 /shoot_status 启动...")
+        # Removed service client creation
 
         # 误差统计
         self.error_count = 0
@@ -56,6 +79,7 @@ class GimbalController(Node):
 
         self.get_logger().info(f'云台控制器节点已启动')
         self.get_logger().info(f'图像中心设置为: ({self.image_center_x}, {self.image_center_y})')
+        self.get_logger().info(f'激光模式: {self.laser_mode} (auto_off=瞄准后1秒关闭, continuous=持续开启)')
         self.get_logger().info(f'订阅话题: /target_data')
         self.get_logger().info(f'发布话题: /uart1_sender_topic (30Hz)')
         self.get_logger().info(f'控制频率: 30Hz')
@@ -67,21 +91,9 @@ class GimbalController(Node):
             cmd_msg = String()
             cmd_msg.data = self.latest_gimbal_command
             self.gimbal_publisher.publish(cmd_msg)
-            self.get_logger().debug(f'发送云台指令: {self.latest_gimbal_command.strip()}')
+            self.latest_gimbal_command = None   # 及时更新为 None
+            self.get_logger().debug(f'发送云台指令: {cmd_msg.data}')
 
-    def call_shoot_service(self, success: bool):
-        """调用服务端，发送打靶成功信号"""
-        req = SetBool.Request()
-        req.data = success
-        future = self.shoot_client.call_async(req)
-        future.add_done_callback(self.shoot_response_callback)
-
-    def shoot_response_callback(self, future):
-        try:
-            response = future.result()
-            self.get_logger().info(f"服务端响应: success={response.success}, message='{response.message}'")
-        except Exception as e:
-            self.get_logger().error(f"调用服务端失败: {e}")
 
     def parse_target_data(self, data_str):
         """
@@ -155,29 +167,113 @@ class GimbalController(Node):
                 self.success_counter = 0
                 return
             
-            # 误差判定
+            # 误差判定 (用于云台控制)
             if abs(x_error) < self.error_threshold and abs(y_error) < self.error_threshold:
                 self.success_counter += 1
-                if self.success_counter >= self.success_required_count:
-                    self.get_logger().info("连续命中阈值满足，发送打靶成功信号")
-                    self.call_shoot_service(True)
-                    self.success_counter = 0
+                # if self.success_counter >= self.success_required_count:
+                #     self.get_logger().info("连续命中阈值满足")
+                #     self.success_counter = 0
             else:
                 self.success_counter = 0
+            
+            # 激光开启判定
+            if abs(x_error) <= self.laser_error_threshold and abs(y_error) <= self.laser_error_threshold:
+                self.laser_counter += 1
+                if self.laser_counter >= self.laser_success_required_count:
+                    self.get_logger().info(f"连续{self.laser_success_required_count}次误差小于等于{self.laser_error_threshold}，激光可开启")
+                    # 根据激光模式控制激光
+                    if self.laser_mode == "auto_off":
+                        self.control_laser_auto_off()
+                    elif self.laser_mode == "continuous":
+                        self.control_laser_continuous(True)
+                    self.laser_counter = 0 # 满足条件后重置计数器
+            else:
+                self.laser_counter = 0 # 不满足条件则重置计数器
             
             # 更新最新的云台控制指令（将由定时器发送）
             self.latest_gimbal_command = self.format_gimbal_command(x_error, y_error)
             
             self.last_target_center = target_center
             self.get_logger().info(
-                f'目标: {target_center} | 误差: ({x_error:+d},{y_error:+d}) | 成功计数:{self.success_counter}'
+                f'目标: {target_center} | 误差: ({x_error:+d},{y_error:+d}) | 成功计数:{self.success_counter} | 激光状态:{self.laser_opened}'
             )
             
         except Exception as e:
             self.error_count += 1
             self.success_counter = 0
             self.get_logger().error(f'处理目标数据时出错: {str(e)}')
+
+    def control_laser_auto_off(self):
+        """自动关闭模式：开启激光1秒后自动关闭"""
+        if not self.laser_opened:
+            # 开启激光 (高电平是开)
+            wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
+            self.laser_opened = True
+            self.get_logger().info(f"激光已开启 (自动关闭模式，{self.laser_shooting_time}秒后关闭)")
+            
+            # 取消之前的定时器（如果存在）
+            if self.laser_timer:
+                self.laser_timer.cancel()
+            
+            # 创建定时器，延时关闭激光
+            self.laser_timer = self.create_timer(
+                self.laser_shooting_time, 
+                self.close_laser_auto
+            )
+            self.get_logger().info(f"定时器已创建，将在 {self.laser_shooting_time} 秒后调用 close_laser_auto")
     
+    def control_laser_continuous(self, turn_on: bool):
+        """持续开启模式：手动控制激光开关"""
+        if turn_on and not self.laser_opened:
+            # 开启激光
+            wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
+            self.laser_opened = True
+            self.get_logger().info("激光已开启 (持续开启模式)")
+        elif not turn_on and self.laser_opened:
+            # 关闭激光
+            wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
+            self.laser_opened = False
+            self.get_logger().info("激光已关闭 (持续开启模式)")
+    
+    def close_laser_auto(self):
+        """自动关闭激光（用于自动关闭模式）"""
+        self.get_logger().info("尝试关闭激光...")
+        if self.laser_opened:
+            wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
+            self.laser_opened = False
+            self.get_logger().info("激光已自动关闭")
+            
+            # 清理定时器，确保只执行一次
+            if self.laser_timer:
+                self.laser_timer.cancel()
+                self.laser_timer = None
+            self.get_logger().info("定时器已取消并清空。")
+        else:
+            self.get_logger().info("激光已处于关闭状态或未开启，无需操作。")
+    
+    
+    def switch_laser_mode(self, new_mode: str):
+        """切换激光模式"""
+        if new_mode in ["auto_off", "continuous"]:
+            old_mode = self.laser_mode
+            self.laser_mode = new_mode
+            
+            # 如果从持续模式切换到自动模式，需要关闭激光
+            if old_mode == "continuous" and new_mode == "auto_off" and self.laser_opened:
+                self.control_laser_continuous(False)
+            
+            self.get_logger().info(f"激光模式已切换: {old_mode} -> {new_mode}")
+        else:
+            self.get_logger().error(f"无效的激光模式: {new_mode}，支持的模式: auto_off, continuous")
+    
+    def get_laser_status(self):
+        """获取激光状态信息"""
+        return {
+            'mode': self.laser_mode,
+            'opened': self.laser_opened,
+            'auto_off_time': self.laser_shooting_time
+        }
+
     def update_image_center(self, width, height):
         """动态更新图像中心配置"""
         self.image_width = width
@@ -215,7 +311,14 @@ def main(args=None):
     finally:
         # 清理资源
         if 'gimbal_controller' in locals():
+            # 取消激光定时器
+            if hasattr(gimbal_controller, 'laser_timer') and gimbal_controller.laser_timer:
+                gimbal_controller.laser_timer.cancel()
+            
             gimbal_controller.destroy_node()
+            # 确保激光关闭
+            wiringpi.digitalWrite(gimbal_controller.laser_pin, GPIO.LOW)
+            print("激光已安全关闭")
         rclpy.shutdown()
 
 if __name__ == '__main__':

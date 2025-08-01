@@ -42,7 +42,7 @@ setup(
             'uart3_receiver = automatic_aiming.uart3_receiver:main',
             'uart3_sender = automatic_aiming.uart3_sender:main',
             'test_node = automatic_aiming.test_node:main',
-            'speakr_node = automatic_aiming.speakr_node:main',
+            # 'speakr_node = automatic_aiming.speakr_node:main',
             # 备用 uart 节点
             'uart0_receiver = automatic_aiming.uart0_receiver:main',
             'uart0_sender = automatic_aiming.uart0_sender:main',

@@ -4,7 +4,6 @@ ekf_filter_node = automatic_aiming.ekf_filter_node:main
 gimbal_controller = automatic_aiming.gimbal_controller:main
 laser_tuner = automatic_aiming.laser_tuner:main
 main_controller = automatic_aiming.main_controller:main
-speakr_node = automatic_aiming.speakr_node:main
 target_detect = automatic_aiming.target_detect:main
 test_node = automatic_aiming.test_node:main
 uart0_receiver = automatic_aiming.uart0_receiver:main
