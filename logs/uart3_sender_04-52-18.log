@@ -1,2 +1,0 @@
-[04:52:29] [uart3_sender] [INFO] [1754081549.076707075] [uart3_sender]: 创建uart3_sender_topic订阅方成功！
-[04:52:29] [uart3_sender] [INFO] [1754081549.077328607] [uart3_sender]: uart3_sender @ /dev/ttyS3 Buad: 115200 init success
