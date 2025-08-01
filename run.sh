@@ -14,7 +14,7 @@ echo "清理旧日志文件..."
 rm -f "${LOGS_DIR}"/*.log
 
 # 获取当前时间戳
-TIMESTAMP=$(date '%H-%M-%S')
+TIMESTAMP=$(date '+%H-%M-%S')
 MAIN_LOG="${LOGS_DIR}/main_${TIMESTAMP}.log"
 
 # 全局进程数组
@@ -22,12 +22,12 @@ declare -a ALL_PIDS=()
 
 # 日志函数
 log_info() {
-    local msg="[$(date '%H:%M:%S')] [INFO] $1"
+    local msg="[$(date '+%H:%M:%S')] [INFO] $1"
     echo "$msg" | tee -a "${MAIN_LOG}"
 }
 
 log_error() {
-    local msg="[$(date '%H:%M:%S')] [ERROR] $1"
+    local msg="[$(date '+%H:%M:%S')] [ERROR] $1"
     echo "$msg" | tee -a "${MAIN_LOG}"
 }
 
@@ -87,20 +87,15 @@ if [ ! -d "${WORKSPACE_DIR}/install/automatic_aiming" ]; then
     source "${WORKSPACE_DIR}/install/setup.bash"
 fi
 
-# 定义所有节点（注释掉uart0相关节点）
+# 定义所有节点
 NODES=(
     "main_controller" 
     "target_detect"
-     # "laser_tuner"
-    # "ekf_filter_node"  # 扩展卡尔曼滤波器节点
     "gimbal_controller"
     "uart1_receiver"
     "uart1_sender"
     "uart3_receiver"
     "uart3_sender"
-    # "speakr_node"
-    # "uart0_receiver"  # 注释掉
-    # "uart0_sender"    # 注释掉
 )
 
 # 启动所有节点
@@ -117,24 +112,19 @@ for node in "${NODES[@]}"; do
         
         # 为不同节点设置不同颜色
         case "$node_name" in
-            
             "main_controller") color="\033[33m" ;;       # 黄色
             "target_detect") color="\033[31m" ;;         # 红色
-            # "ekf_filter_node") color="\033[32m" ;;      # 绿色
-            # "laser_tuner") color="\033[32m" ;;      # 绿色
             "gimbal_controller") color="\033[30m" ;;     # 橙色
             "uart1_receiver") color="\033[34m" ;;        # 蓝色
             "uart1_sender") color="\033[34m" ;;          # 蓝色
             "uart3_receiver") color="\033[36m" ;;        # 青色
             "uart3_sender") color="\033[36m" ;;          # 青色
-            # "speakr_node") color="\033[90m" ;;           # 灰色
             *) color="\033[0m" ;;                        # 默认色
         esac
         
         # 启动节点并处理输出
         ros2 run automatic_aiming "$node_name" 2>&1 | while IFS= read -r line; do
-            # 添加时间戳和节点名称
-            timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+            timestamp=$(date '+%H:%M:%S')
             formatted_line="[$timestamp] [$node_name] $line"
             
             # 同时输出到终端（带颜色）和日志文件（无颜色）
@@ -180,4 +170,4 @@ while true; do
     sleep 2
 done
 
-cleanup()
+cleanup

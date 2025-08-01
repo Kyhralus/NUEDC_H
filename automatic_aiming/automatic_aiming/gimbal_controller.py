@@ -4,14 +4,11 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-# Removed SetBool import
 import re
 import time
 import wiringpi
 from wiringpi import GPIO
 import time
-import wiringpi
-from wiringpi import GPIO
 
 class GimbalController(Node):
     """云台控制器节点"""
@@ -31,12 +28,16 @@ class GimbalController(Node):
         self.success_counter = 0           # 计数器 (用于云台控制的成功计数)
 
         # 激光开启判定配置
-        self.laser_error_threshold = 15     # 激光开启的最大允许误差
-        self.laser_success_required_count = 5 # 激光开启所需的连续成功次数
+        self.laser_error_threshold = 20     # 激光开启的最大允许误差
+        self.laser_success_required_count = 3 # 激光开启所需的连续成功次数
         self.laser_counter = 0             # 激光计数器
         
         # 激光控制相关配置
         self.laser_pin = 9                # GPIO9用于控制激光 (根据用户提供的wiringpi示例)
+        
+        # 激光安全控制开关
+        self.laser_switch_pin = 5        # GPIO5用于激光安全开关(输入模式)
+        self.laser_safety_enabled = False # 激光安全状态（True=允许激光开启，False=禁止激光开启）
         
         # 激光状态管理
         self.laser_mode = "auto_off"      # 激光模式: "auto_off" 或 "continuous"
@@ -49,7 +50,10 @@ class GimbalController(Node):
         wiringpi.pinMode(self.laser_pin, GPIO.OUTPUT)
         wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)  # 初始状态为关闭
         
-
+        # 设置激光安全开关引脚为输入模式，默认上拉
+        wiringpi.pinMode(self.laser_switch_pin, GPIO.INPUT)
+        wiringpi.pullUpDnControl(self.laser_switch_pin, GPIO.PUD_UP)  # 上拉电阻
+        
         # 创建订阅者 - 订阅目标数据
         self.target_subscriber = self.create_subscription(
             String,
@@ -77,14 +81,17 @@ class GimbalController(Node):
         # 创建30Hz定时器用于发送云台控制指令
         self.gimbal_timer = self.create_timer(0.03, self.gimbal_timer_callback)
 
+        # 创建定时器用于检查激光安全开关状态 (每1秒检查一次)
+        self.laser_safety_timer = self.create_timer(0.5, self.check_laser_safety_switch)
+
         self.get_logger().info(f'云台控制器节点已启动')
         self.get_logger().info(f'图像中心设置为: ({self.image_center_x}, {self.image_center_y})')
         self.get_logger().info(f'激光模式: {self.laser_mode} (auto_off=瞄准后1秒关闭, continuous=持续开启)')
+        self.get_logger().info(f'激光安全开关: GPIO{self.laser_switch_pin} (低电平:禁用激光, 高电平:允许激光)')
         self.get_logger().info(f'订阅话题: /target_data')
         self.get_logger().info(f'发布话题: /uart1_sender_topic (30Hz)')
         self.get_logger().info(f'控制频率: 30Hz')
     
-
     def gimbal_timer_callback(self):
         """30Hz定时器回调函数，用于发送云台控制指令"""
         if self.latest_gimbal_command is not None:
@@ -203,8 +210,44 @@ class GimbalController(Node):
             self.success_counter = 0
             self.get_logger().error(f'处理目标数据时出错: {str(e)}')
 
+    def check_laser_safety_switch(self):
+        """每1秒检查一次激光安全开关状态"""
+        switch_state = wiringpi.digitalRead(self.laser_switch_pin)
+        old_state = self.laser_safety_enabled
+        
+        # 更新安全状态
+        self.laser_safety_enabled = (switch_state == GPIO.HIGH)
+        
+        # 记录状态变化
+        if self.laser_safety_enabled != old_state:
+            if self.laser_safety_enabled:
+                self.get_logger().info("激光安全开关已切换到高电平，允许激光开启")
+            else:
+                self.get_logger().info("激光安全开关已切换到低电平，禁止激光开启")
+        
+        # 如果安全开关为低电平且激光当前是开启状态，则强制关闭激光
+        if not self.laser_safety_enabled and self.laser_opened:
+            wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
+            self.laser_opened = False
+            self.get_logger().info("激光安全开关处于低电平，强制关闭激光")
+            
+            # 如果有定时器，取消它
+            if self.laser_timer:
+                self.laser_timer.cancel()
+                self.laser_timer = None
+    
+    def is_laser_allowed(self):
+        """检查当前是否允许激光开启"""
+        # 使用缓存的安全状态而不是每次都读取GPIO
+        return self.laser_safety_enabled
+    
     def control_laser_auto_off(self):
         """自动关闭模式：开启激光1秒后自动关闭"""
+        # 先检查安全开关是否允许激光开启
+        if not self.is_laser_allowed():
+            self.get_logger().info("激光安全开关处于低电平，禁止开启激光")
+            return
+            
         if not self.laser_opened:
             # 开启激光 (高电平是开)
             wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
@@ -224,12 +267,18 @@ class GimbalController(Node):
     
     def control_laser_continuous(self, turn_on: bool):
         """持续开启模式：手动控制激光开关"""
-        if turn_on and not self.laser_opened:
-            # 开启激光
-            wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
-            self.laser_opened = True
-            self.get_logger().info("激光已开启 (持续开启模式)")
-        elif not turn_on and self.laser_opened:
+        if turn_on:
+            # 先检查安全开关是否允许激光开启
+            if not self.is_laser_allowed():
+                self.get_logger().info("激光安全开关处于低电平，禁止开启激光")
+                return
+                
+            if not self.laser_opened:
+                # 开启激光
+                wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
+                self.laser_opened = True
+                self.get_logger().info("激光已开启 (持续开启模式)")
+        elif self.laser_opened:
             # 关闭激光
             wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
             self.laser_opened = False
@@ -271,7 +320,8 @@ class GimbalController(Node):
         return {
             'mode': self.laser_mode,
             'opened': self.laser_opened,
-            'auto_off_time': self.laser_shooting_time
+            'auto_off_time': self.laser_shooting_time,
+            'safety_enabled': self.laser_safety_enabled
         }
 
     def update_image_center(self, width, height):
@@ -314,6 +364,8 @@ def main(args=None):
             # 取消激光定时器
             if hasattr(gimbal_controller, 'laser_timer') and gimbal_controller.laser_timer:
                 gimbal_controller.laser_timer.cancel()
+            if hasattr(gimbal_controller, 'laser_safety_timer'):
+                gimbal_controller.laser_safety_timer.cancel()
             
             gimbal_controller.destroy_node()
             # 确保激光关闭

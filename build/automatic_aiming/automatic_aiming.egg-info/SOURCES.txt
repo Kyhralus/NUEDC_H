@@ -2,6 +2,7 @@ package.xml
 setup.cfg
 setup.py
 automatic_aiming/__init__.py
+automatic_aiming/circle_calc_perspective.py
 automatic_aiming/ekf_filter_node.py
 automatic_aiming/gimbal_controller.py
 automatic_aiming/laser_tuner.py
@@ -9,13 +10,14 @@ automatic_aiming/main_controller.py
 automatic_aiming/ref.py
 automatic_aiming/speakr_node.py
 automatic_aiming/target_detect.py
-automatic_aiming/test_gpio.py
+automatic_aiming/test.py
 automatic_aiming/uart0_receiver.py
 automatic_aiming/uart0_sender.py
 automatic_aiming/uart1_receiver.py
 automatic_aiming/uart1_sender.py
 automatic_aiming/uart3_receiver.py
 automatic_aiming/uart3_sender.py
+automatic_aiming/warp_data_publisher_test.py
 automatic_aiming.egg-info/PKG-INFO
 automatic_aiming.egg-info/SOURCES.txt
 automatic_aiming.egg-info/dependency_links.txt

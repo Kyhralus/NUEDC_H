@@ -57,11 +57,20 @@ class TargetDetectionNode(Node):
         
         # 激光寻找标志，默认关闭
         self.enable_laser_detection = False
+        self.laser_min_area, self.laser_max_area = 50, 500  # 激光检测面积范围
         
-        # 仿射变换相关
-        self.affine_matrix = None
-        self.inverse_affine_matrix = None
+        # 透视变换相关（替换原来的仿射变换）
+        self.perspective_matrix = None
+        self.inverse_perspective_matrix = None
         self.laser_expand_pixels = 30  # 可调参数：激光检测区域外扩像素数
+        
+        # 透视变换缓存机制
+        self.last_corners = None              # 上一次的角点
+        self.corner_change_threshold = 3.0    # 角点变化阈值（像素）
+        self.cached_perspective_matrix = None # 缓存的透视变换矩阵
+        self.cached_inverse_perspective_matrix = None # 缓存的逆透视变换矩阵
+        self.cache_hit_count = 0              # 缓存命中次数
+        self.cache_miss_count = 0             # 缓存未命中次数
         
         # 多线程相关
         self.frame_queue = Queue(maxsize=2)  # 图像队列，限制大小避免内存堆积
@@ -75,6 +84,7 @@ class TargetDetectionNode(Node):
         # 检测相关变量
         self.outer_rect = None
         self.inner_rect = None
+        self.corners = None
         self.target_center = None
         self.target_circle = None
         
@@ -138,31 +148,6 @@ class TargetDetectionNode(Node):
         
         return cropped
     
-    def crop_rectangle_with_padding(self, image, rect, padding=30):
-        """根据检测到的矩形裁剪图像，并添加指定的边距"""
-        if rect is None:
-            return self.crop_center_image(image, 800, 600)
-            
-        # 获取矩形的边界框
-        x, y, w, h = rect['bbox']
-        
-        # 添加边距
-        x_min = max(0, x - padding)
-        y_min = max(0, y - padding)
-        x_max = min(image.shape[1], x + w + padding)
-        y_max = min(image.shape[0], y + h + padding)
-        
-        # 裁剪图像
-        cropped = image[y_min:y_max, x_min:x_max]
-        
-        # 如果裁剪后的尺寸过小，回退到中心裁剪
-        if cropped.shape[0] < 100 or cropped.shape[1] < 100:
-            return self.crop_center_image(image, 800, 600)
-            
-        # 调整到固定尺寸以保持一致性
-        cropped = cv2.resize(cropped, (800, 600))
-        
-        return cropped
     
     def preprocess_image(self, frame):
         """优化的统一预处理步骤"""
@@ -210,11 +195,11 @@ class TargetDetectionNode(Node):
         rectangles = []
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
-            if area < 2000:  # 降低面积阈值以提高检测敏感度
+            if area < 3000:  # 降低面积阈值以提高检测敏感度
                 continue
                 
             # 使用更宽松的多边形逼近
-            epsilon = 0.04 * cv2.arcLength(contour, True)  # 从0.03降低到0.02
+            epsilon = 0.02 * cv2.arcLength(contour, True)  # 从0.03降低到0.02
             approx = cv2.approxPolyDP(contour, epsilon, True)
             
             # 允许4-6个顶点的多边形，增加检测成功率
@@ -229,7 +214,7 @@ class TargetDetectionNode(Node):
                 
                 # 添加长宽比检查，但更宽松
                 aspect_ratio = w / h if h > 0 else 0
-                if 0.3 < aspect_ratio < 3.0:  # 允许更大的长宽比范围
+                if 1.0 < aspect_ratio < 3.0:  # 允许更大的长宽比范围
                     rectangles.append({
                         'id': i,
                         'contour': contour,
@@ -272,30 +257,32 @@ class TargetDetectionNode(Node):
         
         return outer_rect, inner_rect
     
-    def compute_affine_transform(self, inner_rect):
-        """计算从inner_rect角点到640x480的仿射变换矩阵"""
-        if inner_rect is None:
-            return None, None
-            
-        # 获取inner_rect的四个角点，按顺序排列
-        corners = inner_rect['corners']
+    def corners_changed_significantly(self, new_corners):
+        """检查角点是否发生显著变化"""
+        if self.last_corners is None:
+            return True
         
-        # 对角点进行排序：左上、右上、右下、左下
-        corners = self.sort_corners(corners)
+        # 计算每个角点的变化距离
+        distances = []
+        for i in range(4):
+            dist = np.linalg.norm(new_corners[i] - self.last_corners[i])
+            distances.append(dist)
         
-        # 目标区域：640x480
-        target_corners = np.float32([
-            [0, 0],      # 左上
-            [640, 0],    # 右上
-            [640, 480],  # 右下
-            [0, 480]     # 左下
-        ])
+        # 如果任何一个角点变化超过阈值，认为发生了显著变化
+        max_change = max(distances)
+        avg_change = np.mean(distances)
         
-        # 计算仿射变换矩阵（使用透视变换获得更好的效果）
-        affine_matrix = cv2.getPerspectiveTransform(corners.astype(np.float32), target_corners)
-        inverse_matrix = cv2.getPerspectiveTransform(target_corners, corners.astype(np.float32))
+        # 使用更严格的判断条件
+        significant_change = max_change > self.corner_change_threshold or avg_change > self.corner_change_threshold * 0.5
         
-        return affine_matrix, inverse_matrix
+        if not significant_change:
+            self.cache_hit_count += 1
+            # self.get_logger().debug(f"透视变换缓存命中 - 最大变化: {max_change:.2f}px, 平均变化: {avg_change:.2f}px")
+        else:
+            self.cache_miss_count += 1
+            # self.get_logger().debug(f"透视变换缓存未命中 - 最大变化: {max_change:.2f}px, 平均变化: {avg_change:.2f}px")
+        
+        return significant_change
     
     def sort_corners(self, corners):
         """对角点进行排序：左上、右上、右下、左下"""
@@ -321,9 +308,45 @@ class TargetDetectionNode(Node):
         reordered = sorted_corners[top_left_idx:] + sorted_corners[:top_left_idx]
         
         return np.array(reordered)
+    def compute_perspective_transform(self, inner_rect):
+        """计算从inner_rect角点到640x480的透视变换矩阵（带缓存优化）"""
+        if inner_rect is None:
+            return None, None
+            
+        # 获取inner_rect的四个角点，按顺序排列
+        corners = inner_rect['corners']
+        
+        # 对角点进行排序：左上、右上、右下、左下
+        self.corners = self.sort_corners(corners)
+        
+        # 检查角点是否发生显著变化
+        if not self.corners_changed_significantly(self.corners):
+            # 使用缓存的透视变换矩阵
+            if self.cached_perspective_matrix is not None and self.cached_inverse_perspective_matrix is not None:
+                return self.cached_perspective_matrix, self.cached_inverse_perspective_matrix
+        
+        # 角点发生显著变化，重新计算透视变换矩阵
+        # 目标区域：640x480
+        target_corners = np.float32([
+            [0, 0],      # 左上
+            [640, 0],    # 右上
+            [640, 480],  # 右下
+            [0, 480]     # 左下
+        ])
+        
+        # 计算透视变换矩阵
+        perspective_matrix = cv2.getPerspectiveTransform(self.corners.astype(np.float32), target_corners)
+        inverse_perspective_matrix = cv2.getPerspectiveTransform(target_corners, self.corners.astype(np.float32))
+        
+        # 更新缓存
+        self.last_corners = self.corners.copy()
+        self.cached_perspective_matrix = perspective_matrix
+        self.cached_inverse_perspective_matrix = inverse_perspective_matrix
+        
+        return perspective_matrix, inverse_perspective_matrix
     
-    def detect_circles_with_affine_optimized(self, frame, inner_rect):
-        """优化的仿射变换圆形检测 - 基于先验条件的精确检测"""
+    def detect_circles_with_perspective_optimized(self, frame, inner_rect):
+        """优化的透视变换圆形检测 - 基于先验条件的精确检测（替换原来的仿射变换）"""
         circle_start = time.time()
         
         if inner_rect is None:
@@ -331,21 +354,25 @@ class TargetDetectionNode(Node):
             self.timing_stats['circle_detection'].append(circle_time)
             return None, None, None
         
-        # 计算仿射变换矩阵
-        affine_matrix, inverse_matrix = self.compute_affine_transform(inner_rect)
-        if affine_matrix is None:
+        # 计算透视变换矩阵（带缓存优化）
+        transform_start = time.time()
+        perspective_matrix, inverse_perspective_matrix = self.compute_perspective_transform(inner_rect)
+        transform_time = (time.time() - transform_start) * 1000
+        
+        if perspective_matrix is None:
             circle_time = (time.time() - circle_start) * 1000
             self.timing_stats['circle_detection'].append(circle_time)
             return None, None, None
         
         # 保存变换矩阵
-        self.affine_matrix = affine_matrix
-        self.inverse_affine_matrix = inverse_matrix
+        self.perspective_matrix = perspective_matrix
+        self.inverse_perspective_matrix = inverse_perspective_matrix
         
-        # 应用仿射变换
-        warped_image = cv2.warpPerspective(frame, affine_matrix, (640, 480))
-        cv2.imshow('Warped Image', warped_image)
-        # 先验条件：仿射变换后640x480对应实际25.5x17.5cm
+        # 应用透视变换
+        warped_image = cv2.warpPerspective(frame, perspective_matrix, (640, 480))
+        cv2.imshow('Perspective Transformed Image', warped_image)
+        
+        # 先验条件：透视变换后640x480对应实际25.5x17.5cm
         # 目标圆半径6cm对应像素半径约为：6 * (640/25.5) ≈ 150像素
         physical_width_cm = 25.5
         physical_height_cm = 17.5
@@ -357,10 +384,8 @@ class TargetDetectionNode(Node):
         
         expected_radius_pixels = int(target_circle_radius_cm * pixel_per_cm)  # 约152像素
         
-        # 目标中心应该在仿射变换后图像的正中心
+        # 目标中心应该在透视变换后图像的正中心
         expected_center = (320, 240)  # 640x480的中心
-        
-        # self.get_logger().info(f"Expected circle: center={expected_center}, radius={expected_radius_pixels}px")
         
         # 简化的图像处理流程 - 减少过度滤波
         gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
@@ -370,30 +395,19 @@ class TargetDetectionNode(Node):
         
         # 使用更保守的阈值处理，避免丢失边缘信息
         # 1. 简单的Otsu阈值
-        _, thresh_otsu = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        
-        # 2. 基于均值的阈值作为备选
-        mean_val = np.mean(blurred)
-        _, thresh_mean = cv2.threshold(blurred, mean_val * 0.7, 255, cv2.THRESH_BINARY_INV)
-        
-        # 选择更好的阈值结果（白色像素占比合理的）
-        white_ratio_otsu = np.sum(thresh_otsu == 255) / (thresh_otsu.shape[0] * thresh_otsu.shape[1])
-        white_ratio_mean = np.sum(thresh_mean == 255) / (thresh_mean.shape[0] * thresh_mean.shape[1])
-        
-        # 选择白色占比在15%-40%之间的结果
-        if 0.03 <= white_ratio_otsu <= 0.2:
-            thresh = thresh_otsu
-            # self.get_logger().info(f"Using Otsu threshold, white ratio: {white_ratio_otsu:.3f}")
-        elif 0.03 <= white_ratio_mean <= 0.2:
-            thresh = thresh_mean
-            # self.get_logger().info(f"Using mean threshold, white ratio: {white_ratio_mean:.3f}")
-        else:
-            # 如果都不合适，使用白色占比更接近25%的
-            if abs(white_ratio_otsu - 0.1) < abs(white_ratio_mean - 0.1):
-                thresh = thresh_otsu
-            else:
-                thresh = thresh_mean
-            # self.get_logger().info(f"Fallback threshold, Otsu ratio: {white_ratio_otsu:.3f}, Mean ratio: {white_ratio_mean:.3f}")
+        # 将blurred向内缩进30个像素，作为thresh_roi
+        h, w = blurred.shape[:2]
+        # 计算缩进后的ROI区域（确保不越界）
+        x1, y1 = max(0, 30), max(0, 30)
+        x2, y2 = min(w, w-30), min(h, h-30)
+        thresh_roi = blurred[y1:y2, x1:x2]
+
+        # 仅对ROI区域使用Otsu阈值处理
+        _, thresh_roi_result = cv2.threshold(thresh_roi, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        # 将处理后的ROI放回原图（非ROI区域设为0）
+        thresh = np.zeros_like(blurred)
+        thresh[y1:y2, x1:x2] = thresh_roi_result
         
         # 最小化的形态学操作 - 只去除明显的噪声
         kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -408,6 +422,11 @@ class TargetDetectionNode(Node):
         # 创建显示图像
         circle_detection_display = cv2.cvtColor(final_processed, cv2.COLOR_GRAY2BGR)
         
+        # 添加透视变换缓存信息到显示图像
+        cache_info = f"Transform Cache: Hit={self.cache_hit_count}, Miss={self.cache_miss_count}, Time={transform_time:.2f}ms"
+        cv2.putText(circle_detection_display, cache_info, (10, 460), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        
         # 在显示图像上标记期望的圆心和圆
         cv2.circle(circle_detection_display, expected_center, 5, (255, 255, 0), -1)
         cv2.circle(circle_detection_display, expected_center, expected_radius_pixels, (255, 255, 0), 2)
@@ -418,6 +437,7 @@ class TargetDetectionNode(Node):
         if not contours:
             circle_time = (time.time() - circle_start) * 1000
             self.timing_stats['circle_detection'].append(circle_time)
+            self.timing_stats['perspective_transform'].append(transform_time)
             return None, None, circle_detection_display
         
         # 基于先验条件的候选圆筛选
@@ -513,25 +533,25 @@ class TargetDetectionNode(Node):
         cv2.putText(circle_detection_display, "Final Target", 
                    (target_x+15, target_y-15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
-        # 逆变换到原图坐标系
+        # 使用透视逆变换到原图坐标系
         target_center = None
         target_circle = None
         
-        if target_center_warped and self.inverse_affine_matrix is not None:
-            # 逆变换靶心坐标
+        if target_center_warped and self.inverse_perspective_matrix is not None:
+            # 透视逆变换靶心坐标
             warped_point = np.array([[[float(target_center_warped[0]), float(target_center_warped[1])]]], dtype=np.float32)
-            original_point = cv2.perspectiveTransform(warped_point, self.inverse_affine_matrix)
+            original_point = cv2.perspectiveTransform(warped_point, self.inverse_perspective_matrix)
             target_center = (int(original_point[0][0][0]), int(original_point[0][0][1]))
         
-        if target_circle_warped and self.inverse_affine_matrix is not None:
-            # 逆变换目标圆
+        if target_circle_warped and self.inverse_perspective_matrix is not None:
+            # 透视逆变换目标圆
             tc_x, tc_y, tc_r = target_circle_warped
             warped_circle_point = np.array([[[float(tc_x), float(tc_y)]]], dtype=np.float32)
-            original_circle_point = cv2.perspectiveTransform(warped_circle_point, self.inverse_affine_matrix)
+            original_circle_point = cv2.perspectiveTransform(warped_circle_point, self.inverse_perspective_matrix)
             
-            # 计算逆变换后的半径（近似）
+            # 计算透视逆变换后的半径（近似）
             warped_radius_point = np.array([[[float(tc_x + tc_r), float(tc_y)]]], dtype=np.float32)
-            original_radius_point = cv2.perspectiveTransform(warped_radius_point, self.inverse_affine_matrix)
+            original_radius_point = cv2.perspectiveTransform(warped_radius_point, self.inverse_perspective_matrix)
             
             original_radius = int(np.linalg.norm(
                 original_radius_point[0][0] - original_circle_point[0][0]
@@ -550,8 +570,102 @@ class TargetDetectionNode(Node):
         
         circle_time = (time.time() - circle_start) * 1000
         self.timing_stats['circle_detection'].append(circle_time)
+        self.timing_stats['perspective_transform'].append(transform_time)
         
         return target_center, target_circle, circle_detection_display
+
+    def detect_blue_purple_laser(self, hsv_image, target_point=None, min_area=50, max_area=500):
+        """检测矩形区域的蓝紫色激光点检测（优化版）"""
+        laser_start = time.time()
+        
+        h, w = hsv_image.shape[:2]
+        reference_point = target_point if target_point is not None else (w // 2, h // 2)
+        
+        # 从self.corners计算包围矩形并扩展
+        if hasattr(self, 'corners') and self.corners is not None and len(self.corners) >= 4:
+            # 提取角点的x和y坐标（假设corners是形状为(4,2)的数组）
+            x_coords = self.corners[:, 0]
+            y_coords = self.corners[:, 1]
+            
+            # 计算原始包围矩形
+            min_x = np.min(x_coords)
+            max_x = np.max(x_coords)
+            min_y = np.min(y_coords)
+            max_y = np.max(y_coords)
+            
+            # 扩展矩形：左右各扩10像素，向上扩15像素（向下不扩展）
+            extend_x = 10
+            extend_up = 15
+            x = max(0, min_x - extend_x)  # 左边界不超出图像
+            y = max(0, min_y - extend_up)  # 上边界不超出图像
+            width = min(w - x, (max_x + extend_x) - x)  # 右边界不超出图像
+            height = min(h - y, max_y - y)  # 下边界保持原始
+            
+            enclose_rect = (x, y, width, height)
+            
+            # 截取HSV图像中的对应区域
+            x1, y1, w1, h1 = enclose_rect
+            roi_hsv = hsv_image[y1:y1+h1, x1:x1+w1]
+        else:
+            # 如果没有有效的角点，使用全图
+            roi_hsv = hsv_image
+            enclose_rect = (0, 0, w, h)  # 全图作为默认区域
+        
+        # 蓝紫色激光的HSV阈值
+        lower_hsv = np.array([25, 3, 208])
+        upper_hsv = np.array([179, 255, 255])
+        mask = cv2.inRange(roi_hsv, lower_hsv, upper_hsv)
+        
+        # 形态学操作
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel, iterations=2)
+        
+        # 查找轮廓
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        laser_point = None
+        best_score = -1
+        
+        # 筛选符合条件的轮廓
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < min_area or area > max_area:
+                continue
+            
+            # 计算轮廓中心（注意：坐标需要转换回原图坐标系）
+            M = cv2.moments(cnt)
+            if M["m00"] == 0:
+                continue
+            # 加上ROI的偏移量，转换为原图坐标
+            x_roi = int(M["m10"] / M["m00"])
+            y_roi = int(M["m01"] / M["m00"])
+            x = x_roi + enclose_rect[0]
+            y = y_roi + enclose_rect[1]
+            
+            # 计算距离基准点的距离
+            dx = x - reference_point[0]
+            dy = y - reference_point[1]
+            distance = np.sqrt(dx**2 + dy**2)
+            
+            # 归一化距离
+            max_possible_distance = np.sqrt((w//2)**2 + (h//2)** 2)
+            normalized_distance = distance / max_possible_distance
+            
+            # 计算评分
+            area_score = area / max_area
+            distance_score = 1 - normalized_distance
+            score = 0.3 * area_score + 0.7 * distance_score
+            
+            # 更新最优激光点
+            if score > best_score:
+                best_score = score
+                laser_point = (x, y)
+        
+        laser_time = (time.time() - laser_start) * 1000
+        self.timing_stats['laser_detection'].append(laser_time)
+        
+        return laser_point
+
 
     def process_image(self, cv_image):
         """优化的图像处理主函数"""
@@ -576,8 +690,8 @@ class TargetDetectionNode(Node):
             rect_time = (time.time() - rect_start) * 1000
             self.timing_stats['rectangle_detection'].append(rect_time)
             
-            # 3. 优化的圆形检测
-            target_center, target_circle, circle_display = self.detect_circles_with_affine_optimized(
+            # 3. 优化的圆形检测（使用透视变换）
+            target_center, target_circle, circle_display = self.detect_circles_with_perspective_optimized(
                 cv_image, inner_rect
             )
             
@@ -585,8 +699,8 @@ class TargetDetectionNode(Node):
             blue_laser_point = None
             laser_display = None
             if self.enable_laser_detection and outer_rect is not None and processed_data['hsv'] is not None:
-                blue_laser_point, laser_display = self.detect_laser_with_expanded_region(
-                    cv_image, outer_rect, target_center
+                blue_laser_point, laser_display = self.detect_blue_purple_laser(
+                    cv_image, target_center, self.laser_min_area, self.laser_max_area
                 )
             
             # 5. 渲染和发布
@@ -604,9 +718,9 @@ class TargetDetectionNode(Node):
             # 7. 显示结果
             cv2.imshow('Target Detection Result', result_image)
             
-            # 显示圆形检测结果
+            # 显示圆形检测结果（更新窗口标题）
             if circle_display is not None:
-                cv2.imshow('Circle Detection (Affine Transformed)', circle_display)
+                cv2.imshow('Circle Detection (Perspective Transformed)', circle_display)
             
             # 显示激光检测结果
             if laser_display is not None:
@@ -761,6 +875,12 @@ class TargetDetectionNode(Node):
                 max_time = np.max(times[-100:])
                 min_time = np.min(times[-100:])
                 self.get_logger().info(f"{task:20s}: Avg={avg_time:6.2f}ms, Max={max_time:6.2f}ms, Min={min_time:6.2f}ms")
+        
+        # 透视变换缓存统计
+        total_transforms = self.cache_hit_count + self.cache_miss_count
+        if total_transforms > 0:
+            cache_hit_rate = self.cache_hit_count / total_transforms * 100
+            self.get_logger().info(f"Perspective Transform Cache Hit Rate: {cache_hit_rate:.1f}% ({self.cache_hit_count}/{total_transforms})")
         
         self.get_logger().info(f"Current FPS: {self.fps:.1f}")
         self.get_logger().info("=" * 60)

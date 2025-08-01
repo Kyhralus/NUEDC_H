@@ -36,7 +36,9 @@ git push origin main
 # 启动节点 - 带日志记录
 export RCUTILS_LOGGING_SEVERITY=INFO
 export RCUTILS_LOGGING_USE_STDOUT=1
-ros2 run automatic_aiming morning.py
+
+
+
 
 # 启动完整系统 - 带详细日志
 export RCUTILS_LOGGING_SEVERITY=DEBUG
@@ -52,6 +54,11 @@ ros2 run automatic_aiming target_detect
 ros2 run automatic_aiming main_controller 
 
 ros2 run automatic_aiming laser_detect
+
+. install/setup.bash
+ros2 run automatic_aiming warp_data_publisher
+. install/setup.bash
+ros2 run automatic_aiming circle_point_calculator
 
 # 安装gpio
 git clone --recursive https://github.com/orangepi-xunlong/wiringOP-Python -b next
