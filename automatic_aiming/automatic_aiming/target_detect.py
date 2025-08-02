@@ -57,7 +57,7 @@ class TargetDetectionNode(Node):
         
         # 激光寻找标志，默认关闭
         self.enable_laser_detection = False
-        self.laser_min_area, self.laser_max_area = 50, 500  # 激光检测面积范围
+        self.laser_min_area, self.laser_max_area = 60, 2000  # 激光检测面积范围
         
         # 透视变换相关（替换原来的仿射变换）
         self.perspective_matrix = None
@@ -87,6 +87,7 @@ class TargetDetectionNode(Node):
         self.corners = None
         self.target_center = None
         self.target_circle = None
+        self.target_circle_area = 0   # 近距离 50cm 左右 40000；远距离1.3m 左右 7800
         
         # 启动图像获取线程
         self.capture_thread = threading.Thread(target=self.capture_frames, daemon=True)
@@ -105,7 +106,7 @@ class TargetDetectionNode(Node):
                 ret, frame = self.cap.read()
                 if ret:
                     # 从图像中心截取800x600区域作为后续处理对象
-                    cropped_frame = self.crop_center_image(frame, 800, 600)
+                    cropped_frame = self.crop_center_image(frame, 960, 500)
                     
                     # 非阻塞地放入队列
                     try:
@@ -438,6 +439,7 @@ class TargetDetectionNode(Node):
             # 更新目标中心和圆形
             self.target_center = target_center
             self.target_circle = target_circle
+            self.target_circle_area = 3.14*target_circle[2]*target_circle[2]
         
         self.timing_stats['perspective_transform'].append(transform_time)
         
@@ -474,7 +476,7 @@ class TargetDetectionNode(Node):
             # 4. 激光检测（仅当开启时）
             blue_laser_point = None
             if self.enable_laser_detection and outer_rect is not None and processed_data['hsv'] is not None:
-                blue_laser_point, laser_display = self.detect_blue_purple_laser(
+                blue_laser_point = self.detect_blue_purple_laser(
                     processed_data['hsv'], target_center, self.laser_min_area, self.laser_max_area
                 )
             
@@ -511,6 +513,99 @@ class TargetDetectionNode(Node):
             self.get_logger().error(f"Image processing error: {str(e)}")
             import traceback
             traceback.print_exc()
+
+    def detect_blue_purple_laser(self, hsv_image, target_point=None, min_area=50, max_area=1500):
+        """检测矩形区域的蓝紫色激光点检测（优化版）"""
+        laser_start = time.time()
+        
+        h, w = hsv_image.shape[:2]
+        reference_point = target_point if target_point is not None else (w // 2, h // 2)
+        
+        # 从self.corners计算包围矩形并扩展
+        if hasattr(self, 'corners') and self.corners is not None and len(self.corners) >= 4:
+            # 提取角点的x和y坐标（假设corners是形状为(4,2)的数组）
+            x_coords = self.corners[:, 0]
+            y_coords = self.corners[:, 1]
+            
+            # 计算原始包围矩形
+            min_x = np.min(x_coords)
+            max_x = np.max(x_coords)
+            min_y = np.min(y_coords)
+            max_y = np.max(y_coords)
+            
+            # 扩展矩形：左右各扩10像素，向上扩15像素（向下不扩展）
+            extend_x = 10
+            extend_up = 15
+            x = max(0, min_x - extend_x)  # 左边界不超出图像
+            y = max(0, min_y - extend_up)  # 上边界不超出图像
+            width = min(w - x, (max_x + extend_x) - x)  # 右边界不超出图像
+            height = min(h - y, max_y - y)  # 下边界保持原始
+            
+            enclose_rect = (x, y, width, height)
+            
+            # 截取HSV图像中的对应区域
+            x1, y1, w1, h1 = enclose_rect
+            roi_hsv = hsv_image[y1:y1+h1, x1:x1+w1]
+        else:
+            # 如果没有有效的角点，使用全图
+            roi_hsv = hsv_image
+            enclose_rect = (0, 0, w, h)  # 全图作为默认区域
+        
+        # 蓝紫色激光的HSV阈值
+        lower_hsv = np.array([13, 54, 149])
+        upper_hsv = np.array([255, 164, 255])
+        mask = cv2.inRange(roi_hsv, lower_hsv, upper_hsv)
+        
+        # 形态学操作
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel, iterations=1)
+        
+        # 查找轮廓
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        laser_point = None
+        best_score = -1
+        
+        # 筛选符合条件的轮廓
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < min_area or area > max_area:
+                continue
+            
+            # 计算轮廓中心（注意：坐标需要转换回原图坐标系）
+            M = cv2.moments(cnt)
+            if M["m00"] == 0:
+                continue
+            # 加上ROI的偏移量，转换为原图坐标
+            x_roi = int(M["m10"] / M["m00"])
+            y_roi = int(M["m01"] / M["m00"])
+            x = x_roi + enclose_rect[0]
+            y = y_roi + enclose_rect[1]
+            
+            # 计算距离基准点的距离
+            dx = x - reference_point[0]
+            dy = y - reference_point[1]
+            distance = np.sqrt(dx**2 + dy**2)
+            
+            # 归一化距离
+            max_possible_distance = np.sqrt((w//2)**2 + (h//2)** 2)
+            normalized_distance = distance / max_possible_distance
+            
+            # 计算评分
+            area_score = area / max_area
+            distance_score = 1 - normalized_distance
+            score = 0.3 * area_score + 0.7 * distance_score
+            
+            # 更新最优激光点
+            if score > best_score:
+                best_score = score
+                laser_point = (x, y)
+        
+        laser_time = (time.time() - laser_start) * 1000
+        self.timing_stats['laser_detection'].append(laser_time)
+        
+        return laser_point
+
 
     def render_results(self, frame, outer_rect, inner_rect, target_center, target_circle, blue_laser_point):
         """渲染检测结果"""
@@ -586,6 +681,7 @@ class TargetDetectionNode(Node):
         cv2.putText(result_image, f"Frame: {self.frame_count}", (10, 60), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
+        
         # 显示检测状态
         cv2.putText(result_image, f"Detection Status: {'Detected' if target_center else 'Not Detected'}", 
                    (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
@@ -593,6 +689,10 @@ class TargetDetectionNode(Node):
         # 激光检测状态
         laser_status = "Laser Detection: ON" if self.enable_laser_detection else "Laser Detection: OFF"
         cv2.putText(result_image, laser_status, (10, 150), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        # 目标圆面积
+        cv2.putText(result_image, f"target circle area: {self.target_circle_area}", (10, 200), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
         # 状态显示
@@ -617,8 +717,18 @@ class TargetDetectionNode(Node):
     
     def publish_detection_data(self, target_center, target_circle, blue_laser_point):
         """发布检测数据"""
+        # if blue_laser_point and  self.enable_laser_detection:
+        #     target_message = f"p,{blue_laser_point[0]},{blue_laser_point[1]}"
+        #     msg_pub = String()
+        #     msg_pub.data = target_message
+        #     self.target_publisher.publish(msg_pub)
         if target_center:
-            target_message = f"p,{target_center[0]},{target_center[1]}"
+            if self.target_circle_area <= 9000: # 向上偏移15
+                target_message = f"p,{target_center[0]},{target_center[1]-15}"
+            elif self.target_circle_area >= 20000: # 向下偏移15
+                target_message = f"p,{target_center[0]},{target_center[1]+15}"
+            else:
+                target_message = f"p,{target_center[0]},{target_center[1]}"
             msg_pub = String()
             msg_pub.data = target_message
             self.target_publisher.publish(msg_pub)
@@ -628,13 +738,6 @@ class TargetDetectionNode(Node):
             msg_pub = String()
             msg_pub.data = target_message
             self.target_publisher.publish(msg_pub)
-        
-        elif blue_laser_point and target_center and self.enable_laser_detection:
-            err_x = blue_laser_point[0] - target_center[0]
-            err_y = blue_laser_point[1] - target_center[1]
-            error_msg = String()
-            error_msg.data = f"l,{err_x},{err_y}"
-            self.target_publisher.publish(error_msg)
 
     def print_performance_stats(self):
         """打印性能统计信息"""
@@ -679,9 +782,9 @@ def main(args=None):
         node = TargetDetectionNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
-        self.get_logger().info("Node shutting down...")
+        node.get_logger().info("Node shutting down...")
     except Exception as e:
-        self.get_logger().error(f"Node execution error: {e}")
+        node.get_logger().error(f"Node execution error: {e}")
     finally:
         cv2.destroyAllWindows()
         rclpy.shutdown()

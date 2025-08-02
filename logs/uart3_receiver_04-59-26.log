@@ -1,3 +1,0 @@
-[04:59:36] [uart3_receiver] [INFO] [1754081976.587723973] [uart3_receiver]: 创建uart3_receiver_topic发布方成功
-[04:59:36] [uart3_receiver] [INFO] [1754081976.588507961] [uart3_receiver]: 串口 /dev/ttyS3 已打开
-[04:59:36] [uart3_receiver] [INFO] [1754081976.589048994] [uart3_receiver]: uart3_receiver @ /dev/ttyS3 Buad: 115200 init success

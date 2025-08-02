@@ -4,6 +4,7 @@ setup.py
 automatic_aiming/__init__.py
 automatic_aiming/circle_calc_perspective.py
 automatic_aiming/ekf_filter_node.py
+automatic_aiming/get_image.py
 automatic_aiming/gimbal_controller.py
 automatic_aiming/laser_tuner.py
 automatic_aiming/main_controller.py

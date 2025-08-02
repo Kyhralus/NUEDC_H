@@ -50,11 +50,6 @@ class MainController(Node): # Renamed
             callback_group=self.reentrant_group
         )
         
-        # 发布系统状态
-        self.status_pub = self.create_publisher(
-            String, "system_status", 10
-        )
-        
         # 发布任务状态到 /uart3_sender_topic
         self.task_status_pub = self.create_publisher(
             String, "/uart3_sender_topic", 10

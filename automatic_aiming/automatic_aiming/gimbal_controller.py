@@ -17,8 +17,8 @@ class GimbalController(Node):
         super().__init__('gimbal_controller')
         
         # 图像中心配置 - 可灵活修改
-        self.image_width = 800
-        self.image_height = 600
+        self.image_width = 960
+        self.image_height = 500
         self.image_center_x = self.image_width // 2   # 400
         self.image_center_y = self.image_height // 2  # 300
         
