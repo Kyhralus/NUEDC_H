@@ -39,7 +39,7 @@ setup(
             # 透视变换计算节点
             "warp_data_publisher = automatic_aiming.warp_data_publisher_test:main",
             # 圆点采样点计算节点
-            'circle_cal_perspective = automatic_aiming.circle_cal_perspective:main',
+            'circle_calc_perspective = automatic_aiming.circle_calc_perspective:main',
 
 
             # 单片机通信 uart 节点

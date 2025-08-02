@@ -33,6 +33,8 @@ git remote set-url origin git@github.com:Kyhralus/NUEDC_H.git
 # 推送代码
 git push origin main 
 
+# 模拟小车指令
+ros2 topic pub --once /uart1_receiver_topic std_msgs/msg/String "{data: 'r40'}"
 # 启动节点 - 带日志记录
 export RCUTILS_LOGGING_SEVERITY=INFO
 export RCUTILS_LOGGING_USE_STDOUT=1

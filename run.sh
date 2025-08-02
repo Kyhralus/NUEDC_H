@@ -96,6 +96,7 @@ NODES=(
     "uart1_sender"
     "uart3_receiver"
     "uart3_sender"
+    "circle_calc_perspective"
 )
 
 # 启动所有节点
@@ -115,6 +116,7 @@ for node in "${NODES[@]}"; do
             "main_controller") color="\033[33m" ;;       # 黄色
             "target_detect") color="\033[31m" ;;         # 红色
             "gimbal_controller") color="\033[30m" ;;     # 橙色
+            "circle_calc_perspective") color="\033[32m" ;;  # 绿色
             "uart1_receiver") color="\033[34m" ;;        # 蓝色
             "uart1_sender") color="\033[34m" ;;          # 蓝色
             "uart3_receiver") color="\033[36m" ;;        # 青色

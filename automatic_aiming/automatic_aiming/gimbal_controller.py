@@ -85,10 +85,10 @@ class GimbalController(Node):
         self.latest_gimbal_command = None
         
         # 创建30Hz定时器用于发送云台控制指令
-        self.gimbal_timer = self.create_timer(0.03, self.gimbal_timer_callback)
+        self.gimbal_timer = self.create_timer(0.02, self.gimbal_timer_callback)
 
-        # 创建定时器用于检查激光安全开关状态 (每1秒检查一次)
-        self.laser_safety_timer = self.create_timer(0.5, self.check_laser_safety_switch)
+        # 创建定时器用于检查激光安全开关状态 (每0.5秒检查一次)
+        self.laser_safety_timer = self.create_timer(0.7, self.check_laser_safety_switch)
 
         self.get_logger().info(f'云台控制器节点已启动')
         self.get_logger().info(f'图像中心设置为: ({self.image_center_x}, {self.image_center_y})')

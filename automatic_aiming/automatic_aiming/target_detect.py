@@ -7,7 +7,6 @@ import time
 import threading
 from queue import Queue, Empty
 from typing import Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor
 import collections
 
 # ROS2 相关导入
@@ -18,63 +17,25 @@ from std_msgs.msg import String
 from std_srvs.srv import SetBool
 from cv_bridge import CvBridge
 
-class TargetDetectionNode(Node):
-    """目标检测ROS2节点"""
+class TargetDetectionService(Node):
+    """目标检测服务节点"""
     
     def __init__(self):
-        super().__init__('target_detection_node')
+        super().__init__('target_detection_service')
         
         # 初始化CV桥接器
         self.bridge = CvBridge()
         
         # 初始化摄像头  
-        self.cap = cv2.VideoCapture(0)
-        if not self.cap.isOpened():
-            self.get_logger().error("Cannot open camera")
-            return
-            
-        # 关键设置：指定MJPG编码格式（高分辨率通常需要此格式）
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        
-        # 设置目标分辨率（1920x1080）
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        
-        # 验证设置是否成功
-        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.get_logger().info(f"Camera resolution set to: {actual_width}x{actual_height}")
-        
-        self.target_publisher = self.create_publisher(
-            String,
-            'target_data',
-            10
-        )
-        
-        # 透视变换数据发布器
-        self.warp_data_publisher = self.create_publisher(
-            String,
-            'warp_data',
-            10
-        )
-        
-        # 透视变换数据发布标志
-        self.pub_perspective_data = False
-        
-        # 创建服务端
-        self.perspective_service = self.create_service(
-            SetBool,
-            'set_perspective_publish',
-            self.perspective_service_callback
-        )
+        self.cap = None
+        self.is_running = False
+        self.frame_count = 0
         
         # 帧率计算相关
-        self.frame_count = 0
         self.fps_start_time = time.time()
         self.fps = 0
         
-        
-        # 透视变换相关（替换原来的仿射变换）
+        # 透视变换相关
         self.perspective_matrix = None
         self.inverse_perspective_matrix = None
         
@@ -89,11 +50,10 @@ class TargetDetectionNode(Node):
         # 多线程相关
         self.frame_queue = Queue(maxsize=2)  # 图像队列，限制大小避免内存堆积
         self.processing_lock = threading.Lock()
-        self.thread_pool = ThreadPoolExecutor(max_workers=3)  # 线程池
+        self.capture_thread = None
         
         # 性能统计
         self.timing_stats = collections.defaultdict(list)
-        self.frame_count = 0
         
         # 检测相关变量
         self.outer_rect = None
@@ -103,6 +63,89 @@ class TargetDetectionNode(Node):
         self.target_circle = None
         self.target_circle_area = 0   # 近距离 50cm 左右 40000；远距离1.3m 左右 7800
         
+        # 透视变换数据发布标志
+        self.pub_perspective_data = False
+        
+        # 数据发布控制标志
+        self.publish_target_data = False
+        
+        # 创建发布器
+        self.target_publisher = self.create_publisher(
+            String,
+            'target_data',
+            10
+        )
+        
+        # 透视变换数据发布器
+        self.warp_data_publisher = self.create_publisher(
+            String,
+            'warp_data',
+            10
+        )
+        
+        # 创建服务端
+        self.perspective_service = self.create_service(
+            SetBool,
+            'set_perspective_publish',
+            self.perspective_service_callback
+        )
+        
+        # 创建目标数据发布控制服务
+        self.detection_service = self.create_service(
+            SetBool,
+            'start_target_detection',
+            self.detection_service_callback
+        )
+        
+        # 启动摄像头和处理线程
+        self.start_detection()
+        
+        self.get_logger().info('Target detection service started')
+    
+    def detection_service_callback(self, request, response):
+        """处理目标数据发布控制服务的请求"""
+        if request.data:
+            # 启动数据发布
+            self.publish_target_data = True
+            response.success = True
+            response.message = "目标数据发布已启动"
+        else:
+            # 停止数据发布
+            self.publish_target_data = False
+            response.success = True
+            response.message = "目标数据发布已停止"
+        
+        self.get_logger().info(f"Received request to {('start' if request.data else 'stop')} target data publishing: {response.message}")
+        return response
+    
+    def start_detection(self):
+        """启动目标检测"""
+        if self.is_running:
+            return
+            
+        self.is_running = True
+        self.frame_count = 0
+        
+        # 初始化摄像头
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            self.get_logger().error("Cannot open camera")
+            self.is_running = False
+            return
+            
+        # 关键设置：指定MJPG编码格式（高分辨率通常需要此格式）
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        
+        # 设置目标分辨率（1920x1080）
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        self.cap.set(cv2.CAP_PROP_FPS, 120)
+        
+        # 验证设置是否成功
+        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.get_logger().info(f"Camera resolution set to: {actual_width}x{actual_height}")
+        
         # 启动图像获取线程
         self.capture_thread = threading.Thread(target=self.capture_frames, daemon=True)
         self.capture_thread.start()
@@ -110,57 +153,32 @@ class TargetDetectionNode(Node):
         # 创建定时器用于处理图像
         self.timer = self.create_timer(0.001, self.process_frame_from_queue)
         
-        self.get_logger().info('Target detection node started')
+        self.get_logger().info('Target detection started')
     
-    def capture_frames(self):
-        """图像捕获线程"""
-        while True:
-            if self.cap.isOpened():
-                ret, frame = self.cap.read()
-                if ret:
-                    # 从图像中心截取960x500区域作为后续处理对象
-                    cropped_frame = self.crop_center_image(frame, 960, 720)
-                    
-                    # 非阻塞地放入队列
-                    try:
-                        self.frame_queue.put_nowait(cropped_frame)
-                    except:
-                        # 队列满时丢弃旧帧
-                        try:
-                            self.frame_queue.get_nowait()
-                            self.frame_queue.put_nowait(cropped_frame)
-                        except Empty:
-                            pass
-            time.sleep(0.001)  # 减少CPU占用
-    
-    def process_frame_from_queue(self):
-        """从队列获取帧并处理"""
-        try:
-            frame = self.frame_queue.get_nowait()
-            self.process_image(frame)
-        except Empty:
-            pass
-    
-    def crop_center_image(self, image, target_width=960, target_height=500):
-        """从图像中心裁剪指定尺寸的区域"""
-        h, w = image.shape[:2]
+    def stop_detection(self):
+        """停止目标检测"""
+        if not self.is_running:
+            return
+            
+        self.is_running = False
         
-        # 计算裁剪区域的起始点
-        start_x = max(0, (w - target_width) // 2)
-        start_y = max(0, (h - target_height) // 2)
+        # 释放摄像头资源
+        if self.cap and self.cap.isOpened():
+            self.cap.release()
+            self.cap = None
         
-        # 计算实际裁剪尺寸（防止超出边界）
-        actual_width = min(target_width, w - start_x)
-        actual_height = min(target_height, h - start_y)
+        # 停止定时器
+        if hasattr(self, 'timer'):
+            self.destroy_timer(self.timer)
         
-        # 裁剪图像
-        cropped = image[start_y:start_y + actual_height, start_x:start_x + actual_width]
+        # 清空队列
+        while not self.frame_queue.empty():
+            try:
+                self.frame_queue.get_nowait()
+            except Empty:
+                break
         
-        # 如果裁剪后的尺寸不足目标尺寸，进行填充或缩放
-        if cropped.shape[:2] != (target_height, target_width):
-            cropped = cv2.resize(cropped, (target_width, target_height))
-        
-        return cropped
+        self.get_logger().info('Target detection stopped')
     
     def perspective_service_callback(self, request, response):
         """处理透视变换数据发布服务的请求"""
@@ -169,6 +187,64 @@ class TargetDetectionNode(Node):
         response.message = f"透视变换数据发布已设置为: {self.pub_perspective_data}"
         self.get_logger().info(f"Received request to set perspective data publish to: {self.pub_perspective_data}")
         return response
+    
+    def capture_frames(self):
+        """图像捕获线程"""
+        while self.is_running and self.cap and self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if ret:
+                # 帧计数增加
+                self.frame_count += 1
+                
+                # 从图像中心截取960x720区域作为后续处理对象
+                cropped_frame = self.crop_center_and_flip(frame, 960, 720)
+                
+                # 非阻塞地放入队列
+                try:
+                    self.frame_queue.put_nowait(cropped_frame)
+                except:
+                    # 队列满时丢弃旧帧
+                    try:
+                        self.frame_queue.get_nowait()
+                        self.frame_queue.put_nowait(cropped_frame)
+                    except Empty:
+                        pass
+            time.sleep(0.001)  # 减少CPU占用
+    
+    def process_frame_from_queue(self):
+        """从队列获取帧并处理"""
+        if not self.is_running:
+            return
+            
+        try:
+            frame = self.frame_queue.get_nowait()
+            self.process_image(frame)
+        except Empty:
+            pass
+    
+    def crop_center_and_flip(self, image, target_width=960, target_height=720):
+        """从图像中心裁剪指定尺寸区域，并进行上下翻转（高效实现）"""
+        h, w = image.shape[:2]
+        
+        # 1. 计算中心裁剪的起始坐标
+        start_x = max(0, (w - target_width) // 2)
+        start_y = max(0, (h - target_height) // 2)
+        
+        # 2. 裁剪（直接切片操作，效率极高）
+        end_x = start_x + min(target_width, w - start_x)
+        end_y = start_y + min(target_height, h - start_y)
+        cropped = image[start_y:end_y, start_x:end_x]  #  numpy切片，几乎不耗时
+        
+        # 3. 若尺寸不足则缩放（仅在必要时执行）
+        if cropped.shape[0] != target_height or cropped.shape[1] != target_width:
+            cropped = cv2.resize(cropped, (target_width, target_height), 
+                            interpolation=cv2.INTER_LINEAR)  # 线性插值速度快
+        
+        # 4. 上下翻转（OpenCV底层优化，耗时极短）
+        flipped = cv2.flip(cropped, 0)  # flipCode=0 表示沿x轴翻转（上下翻转）
+        
+        return flipped
+    
     
     def publish_perspective_matrix(self):
         """发布透视变换矩阵到ROS2话题"""
@@ -184,7 +260,6 @@ class TargetDetectionNode(Node):
             msg.data = msg_data
             self.warp_data_publisher.publish(msg)
             self.get_logger().debug(f"Published perspective matrix: {msg_data}")
-
 
     def preprocess_image(self, frame):
         """优化的统一预处理步骤"""
@@ -207,19 +282,15 @@ class TargetDetectionNode(Node):
         center_roi = blurred[start_y:end_y, start_x:end_x]
          # 3. 对中心区域计算Otsu阈值
         otsu_thresh, _ = cv2.threshold(center_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        print(f"Otsu阈值（基于中心区域）: {otsu_thresh}")
         
         # 4. 用该阈值对全图进行二值化
         _, binary = cv2.threshold(gray, otsu_thresh, 255, cv2.THRESH_BINARY)
         # 可选：轻微形态学操作去除噪点
         kernel = np.ones((3, 3), np.uint8)
         binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
-        cv2.imshow("3. Binary Image (Otsu Threshold)", binary)
-        cv2.waitKey(1)
         
         # 5. 边缘检测（基于二值化结果）
         edged = cv2.Canny(binary, 50, 150)  # Canny阈值可根据效果调整
-
         
         preprocess_time = (time.time() - preprocess_start) * 1000
         self.timing_stats['preprocess'].append(preprocess_time)
@@ -234,24 +305,13 @@ class TargetDetectionNode(Node):
         """优化的嵌套矩形检测 - 增加稳定性并显示每步处理结果"""
         rect_start = time.time()
         
-        
         # 1. 形态学操作
         kernel = np.ones((5, 5), np.uint8)
         edged_stable = cv2.morphologyEx(edged_image, cv2.MORPH_CLOSE, kernel)
         edged_stable = cv2.dilate(edged_stable, kernel, iterations=1)
         
-        # 显示形态学处理结果
-        # cv2.imshow("2. After Morphology (Close + Dilate)", edged_stable)
-        # cv2.waitKey(1)
-        
         # 2. 轮廓检测
         contours, hierarchy = cv2.findContours(edged_stable, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # 显示所有检测到的轮廓
-        contour_img = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
-        cv2.drawContours(contour_img, contours, -1, (0, 255, 0), 2)  # 绿色绘制所有轮廓
-        # cv2.imshow("3. All Detected Contours", contour_img)
-        # cv2.waitKey(1)
         
         # 3. 筛选矩形
         rectangles = []
@@ -282,7 +342,7 @@ class TargetDetectionNode(Node):
             if area < 6000:
                 cv2.drawContours(filter_img, [contour], -1, (128, 128, 128), 1)
                 continue
-            # print("检测到的面积：",area)
+            
             # 多边形逼近
             epsilon = 0.02 * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
@@ -341,22 +401,8 @@ class TargetDetectionNode(Node):
             # 用蓝色绘制通过筛选的矩形
             cv2.drawContours(filter_img, [approx], -1, (255, 0, 0), 2)
 
-        # 显示筛选结果
-        # cv2.imshow("4. Filtered Rectangles (Blue: Passed)", filter_img)
-        # cv2.waitKey(1)
-
         # 4. 按面积排序
         rectangles.sort(key=lambda r: r['area'], reverse=True)
-
-        # 显示排序后的前10个最大矩形
-        top_rects_img = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
-        for idx, r in enumerate(rectangles[:10]):
-            color = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)][idx % 5]
-            cv2.drawContours(top_rects_img, [r['approx']], -1, color, 2)
-            cv2.putText(top_rects_img, f"Top {idx+1}", r['center'], 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-        # cv2.imshow("5. Top 10 Largest Rectangles", top_rects_img)
-        # cv2.waitKey(1)
 
         # 5. 寻找嵌套矩形对
         outer_rect = inner_rect = None
@@ -391,13 +437,6 @@ class TargetDetectionNode(Node):
             if outer_rect is not None:
                 break
         
-        # 显示嵌套矩形检测结果
-        if outer_rect is None or inner_rect is None:
-            cv2.putText(nested_img, "No nested rectangles found", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        # cv2.imshow("6. Nested Rectangles Detection Result", nested_img)
-        # cv2.waitKey(1)
-        
         # 计算耗时
         rect_time = (time.time() - rect_start) * 1000
         self.timing_stats['rectangle_detection'].append(rect_time)
@@ -424,10 +463,8 @@ class TargetDetectionNode(Node):
         
         if not significant_change:
             self.cache_hit_count += 1
-            # self.get_logger().debug(f"透视变换缓存命中 - 最大变化: {max_change:.2f}px, 平均变化: {avg_change:.2f}px")
         else:
             self.cache_miss_count += 1
-            # self.get_logger().debug(f"透视变换缓存未命中 - 最大变化: {max_change:.2f}px, 平均变化: {avg_change:.2f}px")
         
         return significant_change
     
@@ -455,6 +492,7 @@ class TargetDetectionNode(Node):
         reordered = sorted_corners[top_left_idx:] + sorted_corners[:top_left_idx]
         
         return np.array(reordered)
+        
     def compute_perspective_transform(self, inner_rect):
         """计算从inner_rect角点到640x480的透视变换矩阵（带缓存优化）"""
         if inner_rect is None:
@@ -594,7 +632,6 @@ class TargetDetectionNode(Node):
     def process_image(self, cv_image):
         """优化的图像处理主函数"""
         total_start_time = time.time()
-        self.frame_count += 1
         
         try:
             # 帧率计算
@@ -646,10 +683,6 @@ class TargetDetectionNode(Node):
             # 8. 性能统计
             total_time = (time.time() - total_start_time) * 1000
             self.timing_stats['total'].append(total_time)
-            
-            # 每100帧打印一次统计信息
-            if self.frame_count % 100 == 0:
-                self.print_performance_stats()
                 
         except Exception as e:
             self.get_logger().error(f"Image processing error: {str(e)}")
@@ -743,6 +776,10 @@ class TargetDetectionNode(Node):
     
     def publish_detection_data(self, target_center, target_circle):
         """发布检测数据"""
+        # 只有当publish_target_data为True时才发布数据
+        if not self.publish_target_data:
+            return
+            
         if target_center:
             if self.target_circle_area <= 9000: # 向上偏移15
                 target_message = f"p,{target_center[0]},{target_center[1]}"
@@ -789,10 +826,7 @@ class TargetDetectionNode(Node):
     
     def __del__(self):
         """析构函数，释放资源"""
-        if hasattr(self, 'cap') and self.cap.isOpened():
-            self.cap.release()
-        if hasattr(self, 'thread_pool'):
-            self.thread_pool.shutdown(wait=True)
+        self.stop_detection()
         cv2.destroyAllWindows()
 
 def main(args=None):
@@ -800,7 +834,7 @@ def main(args=None):
     rclpy.init(args=args)
     
     try:
-        node = TargetDetectionNode()
+        node = TargetDetectionService()
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info("Node shutting down...")

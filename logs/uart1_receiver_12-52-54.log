@@ -1,3 +1,0 @@
-[12:53:00] [uart1_receiver] [INFO] [1754110380.813721607] [uart1_receiver]: 创建uart1_receiver_topic发布方成功
-[12:53:00] [uart1_receiver] [INFO] [1754110380.814745049] [uart1_receiver]: 串口 /dev/ttyS1 已打开
-[12:53:00] [uart1_receiver] [INFO] [1754110380.815371830] [uart1_receiver]: uart1_receiver @ /dev/ttyS1 Buad: 115200 init success

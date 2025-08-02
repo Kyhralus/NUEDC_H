@@ -51,26 +51,89 @@ class MainController(Node): # Renamed
         request = SetBool.Request()
         request.data = enable_continuous
         
+        # 使用异步方式调用服务，避免阻塞主线程
+        future = self.laser_mode_client.call_async(request)
+        
+        # 添加回调函数处理服务响应
+        future.add_done_callback(
+            lambda future: self.laser_mode_callback(future, enable_continuous)
+        )
+        
+        return True
+    
+    def laser_mode_callback(self, future, enable_continuous):
+        """激光模式切换服务回调函数"""
         try:
-            future = self.laser_mode_client.call_async(request)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
-            
-            if future.result() is not None:
-                response = future.result()
-                if response.success:
-                    mode = "continuous" if enable_continuous else "auto_off"
-                    self.get_logger().info(f'激光模式切换成功: {mode} - {response.message}')
-                    return True
-                else:
-                    self.get_logger().error(f'激光模式切换失败: {response.message}')
-                    return False
+            response = future.result()
+            if response.success:
+                mode = "continuous" if enable_continuous else "auto_off"
+                self.get_logger().info(f'激光模式切换成功: {mode} - {response.message}')
             else:
-                self.get_logger().error('激光模式切换服务调用超时')
-                return False
-                
+                self.get_logger().error(f'激光模式切换失败: {response.message}')
         except Exception as e:
-            self.get_logger().error(f'调用激光模式切换服务时出错: {str(e)}')
+            self.get_logger().error(f'处理激光模式切换服务响应时出错: {str(e)}')
+    
+    def call_target_detection_service(self, enable):
+        """调用目标检测服务"""
+        if not self.target_detection_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().error('目标检测服务不可用')
             return False
+        
+        request = SetBool.Request()
+        request.data = enable
+        
+        # 使用异步方式调用服务，避免阻塞主线程
+        future = self.target_detection_client.call_async(request)
+        
+        # 添加回调函数处理服务响应
+        future.add_done_callback(
+            lambda future: self.target_detection_callback(future, enable)
+        )
+        
+        return True
+    
+    def target_detection_callback(self, future, enable):
+        """目标检测服务回调函数"""
+        try:
+            response = future.result()
+            if response.success:
+                action = "启动" if enable else "停止"
+                self.get_logger().info(f'目标检测服务{action}成功: {response.message}')
+            else:
+                self.get_logger().error(f'目标检测服务调用失败: {response.message}')
+        except Exception as e:
+            self.get_logger().error(f'处理目标检测服务响应时出错: {str(e)}')
+    
+    def call_perspective_service(self, enable):
+        """调用透视变换数据发布服务"""
+        if not self.perspective_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().error('透视变换数据发布服务不可用')
+            return False
+        
+        request = SetBool.Request()
+        request.data = enable
+        
+        # 使用异步方式调用服务，避免阻塞主线程
+        future = self.perspective_client.call_async(request)
+        
+        # 添加回调函数处理服务响应
+        future.add_done_callback(
+            lambda future: self.perspective_callback(future, enable)
+        )
+        
+        return True
+    
+    def perspective_callback(self, future, enable):
+        """透视变换数据发布服务回调函数"""
+        try:
+            response = future.result()
+            if response.success:
+                action = "启动" if enable else "停止"
+                self.get_logger().info(f'透视变换数据发布{action}成功: {response.message}')
+            else:
+                self.get_logger().error(f'透视变换数据发布服务调用失败: {response.message}')
+        except Exception as e:
+            self.get_logger().error(f'处理透视变换数据发布服务响应时出错: {str(e)}')
     
     def init_communications(self):
         """初始化ROS2通信接口"""
@@ -97,6 +160,12 @@ class MainController(Node): # Renamed
             SetBool,
             'set_perspective_publish'
         )
+        
+        # 目标检测服务客户端
+        self.target_detection_client = self.create_client(
+            SetBool,
+            'start_target_detection'
+        )
 
     def handle_uart_command(self, msg):
         """处理串口指令（映射到对应任务）"""
@@ -118,22 +187,31 @@ class MainController(Node): # Renamed
         elif cmd == "r40":  # 瞄准后发送 '@1/r'
             self.task_status_pub.publish(String(data="task4"))
             self.get_logger().info("发布任务状态: task4")
-            # 收到r40指令时，切换激光模式为continuous
-
+            # 收到r40指令时，启动目标检测服务
+            self.call_target_detection_service(True)
         
         elif cmd == "r41":
-            self.task_status_pub.publish(String(data="task4"))
-            self.get_logger().info("扩展任务一，开启激光")
+            self.get_logger().info("扩展任务一，激光开启")
             # 收到r40指令时，切换激光模式为continuous
             self.call_laser_mode_service(True)
 
-        elif cmd == "r50":  # 发挥部分2：靶心跟踪 --- 两圈
+         # 发挥部分2：靶心跟踪 --- 两圈
+        elif cmd == "r50": 
             self.task_status_pub.publish(String(data="task5"))
-            self.get_logger().info("发布任务状态: task5")
+            self.get_logger().info("发布任务状态: task4")
+            # 收到r40指令时，启动目标检测服务
+            self.call_target_detection_service(True)
+        elif cmd == "r51": 
+            self.get_logger().info("扩展任务二，激光开启")
             self.call_laser_mode_service(True)
+
+
         elif cmd == "r60": # 发挥部分3：同步画圆 
             self.task_status_pub.publish(String(data="task6"))
             self.get_logger().info("发布任务状态: task6")
+            # 启动透视变换数据发布服务
+            self.call_perspective_service(True)
+            # 启动激光
             self.call_laser_mode_service(True)
         elif cmd == "r70": # DIY
             self.task_status_pub.publish(String(data="task7"))
