@@ -1,4 +1,4 @@
-# !/usr/bin/env python3
+#!/usr/bin/env python3
 #  -*- coding: utf-8 -*-
 
 import cv2
@@ -15,6 +15,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+from std_srvs.srv import SetBool
 from cv_bridge import CvBridge
 
 class TargetDetectionNode(Node):
@@ -46,23 +47,36 @@ class TargetDetectionNode(Node):
         
         self.target_publisher = self.create_publisher(
             String,
-            '/target_data',
+            'target_data',
             10
         )
         
-        # 帧率计算相关 - 修复逻辑
+        # 透视变换数据发布器
+        self.warp_data_publisher = self.create_publisher(
+            String,
+            'warp_data',
+            10
+        )
+        
+        # 透视变换数据发布标志
+        self.pub_perspective_data = False
+        
+        # 创建服务端
+        self.perspective_service = self.create_service(
+            SetBool,
+            'set_perspective_publish',
+            self.perspective_service_callback
+        )
+        
+        # 帧率计算相关
         self.frame_count = 0
         self.fps_start_time = time.time()
         self.fps = 0
         
-        # 激光寻找标志，默认关闭
-        self.enable_laser_detection = False
-        self.laser_min_area, self.laser_max_area = 60, 2000  # 激光检测面积范围
         
         # 透视变换相关（替换原来的仿射变换）
         self.perspective_matrix = None
         self.inverse_perspective_matrix = None
-        self.laser_expand_pixels = 30  # 可调参数：激光检测区域外扩像素数
         
         # 透视变换缓存机制
         self.last_corners = None              # 上一次的角点
@@ -97,7 +111,6 @@ class TargetDetectionNode(Node):
         self.timer = self.create_timer(0.001, self.process_frame_from_queue)
         
         self.get_logger().info('Target detection node started')
-        self.get_logger().info(f'Laser detection status: {"Enabled" if self.enable_laser_detection else "Disabled"}')
     
     def capture_frames(self):
         """图像捕获线程"""
@@ -105,8 +118,8 @@ class TargetDetectionNode(Node):
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
                 if ret:
-                    # 从图像中心截取800x600区域作为后续处理对象
-                    cropped_frame = self.crop_center_image(frame, 1290, 1080)
+                    # 从图像中心截取960x500区域作为后续处理对象
+                    cropped_frame = self.crop_center_image(frame, 960, 720)
                     
                     # 非阻塞地放入队列
                     try:
@@ -128,7 +141,7 @@ class TargetDetectionNode(Node):
         except Empty:
             pass
     
-    def crop_center_image(self, image, target_width=800, target_height=600):
+    def crop_center_image(self, image, target_width=960, target_height=500):
         """从图像中心裁剪指定尺寸的区域"""
         h, w = image.shape[:2]
         
@@ -149,27 +162,64 @@ class TargetDetectionNode(Node):
         
         return cropped
     
+    def perspective_service_callback(self, request, response):
+        """处理透视变换数据发布服务的请求"""
+        self.pub_perspective_data = request.data
+        response.success = True
+        response.message = f"透视变换数据发布已设置为: {self.pub_perspective_data}"
+        self.get_logger().info(f"Received request to set perspective data publish to: {self.pub_perspective_data}")
+        return response
     
+    def publish_perspective_matrix(self):
+        """发布透视变换矩阵到ROS2话题"""
+        if self.pub_perspective_data and self.perspective_matrix is not None:
+            # 将矩阵展平为一维数组，并转换为字符串
+            matrix_flat = self.perspective_matrix.flatten()
+            matrix_str = ",".join(f"{x:.6f}" for x in matrix_flat)
+            
+            # 构建消息字符串，例如 "M:h11,h12,h13,h21,h22,h23,h31,h32,h33"
+            msg_data = f"M:{matrix_str}"
+            
+            msg = String()
+            msg.data = msg_data
+            self.warp_data_publisher.publish(msg)
+            self.get_logger().debug(f"Published perspective matrix: {msg_data}")
+
+
     def preprocess_image(self, frame):
         """优化的统一预处理步骤"""
         preprocess_start = time.time()
         
         # 一次性完成灰度化和高斯模糊
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
         # 使用高斯模糊替代双边滤波（更快）
-        blurred = cv2.GaussianBlur(gray, (5, 5), 1.5)
+        blurred = cv2.GaussianBlur(gray, (3, 3), 0.8)
+        h, w = blurred.shape[:2]
+
+        # 2. 提取中间640x480区域（若原图小于该尺寸则用全图）
+        crop_w, crop_h = 640, 480
+        # 计算中心区域坐标
+        start_x = max(0, (w - crop_w) // 2)
+        start_y = max(0, (h - crop_h) // 2)
+        end_x = min(w, start_x + crop_w)
+        end_y = min(h, start_y + crop_h)
+        # 裁剪中心区域
+        center_roi = blurred[start_y:end_y, start_x:end_x]
+         # 3. 对中心区域计算Otsu阈值
+        otsu_thresh, _ = cv2.threshold(center_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        print(f"Otsu阈值（基于中心区域）: {otsu_thresh}")
         
-        # 合并形态学处理和Canny边缘检测
+        # 4. 用该阈值对全图进行二值化
+        _, binary = cv2.threshold(gray, otsu_thresh, 255, cv2.THRESH_BINARY)
+        # 可选：轻微形态学操作去除噪点
         kernel = np.ones((3, 3), np.uint8)
-        morphed = cv2.morphologyEx(blurred, cv2.MORPH_ERODE, kernel)
-        morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel)
-        edged = cv2.Canny(morphed, 40, 120)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+        cv2.imshow("3. Binary Image (Otsu Threshold)", binary)
+        cv2.waitKey(1)
         
-        # 只在需要时转换HSV（激光检测开启时）
-        hsv = None
-        # if self.enable_laser_detection:
-        #     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # 5. 边缘检测（基于二值化结果）
+        edged = cv2.Canny(binary, 50, 150)  # Canny阈值可根据效果调整
+
         
         preprocess_time = (time.time() - preprocess_start) * 1000
         self.timing_stats['preprocess'].append(preprocess_time)
@@ -177,96 +227,144 @@ class TargetDetectionNode(Node):
         return {
             'gray': gray,
             'blurred': blurred,
-            'edged': edged,
-            'hsv': hsv
+            'edged': edged
         }
     
     def detect_nested_rectangles_optimized(self, edged_image):
-        """优化的嵌套矩形检测 - 增加稳定性，同时显示每一步结果"""
+        """优化的嵌套矩形检测 - 增加稳定性并显示每步处理结果"""
         rect_start = time.time()
         
-        # 显示原始边缘图像
-        # cv2.imshow("1. Original Edged Image", edged_image)
-        # cv2.waitKey(1)  # 1ms延迟，允许窗口刷新
         
-        # 对边缘图像进行额外的形态学操作以提高稳定性
-        kernel = np.ones((2, 2), np.uint8)
+        # 1. 形态学操作
+        kernel = np.ones((5, 5), np.uint8)
         edged_stable = cv2.morphologyEx(edged_image, cv2.MORPH_CLOSE, kernel)
         edged_stable = cv2.dilate(edged_stable, kernel, iterations=1)
         
-        # 显示形态学处理后的边缘图像
-        # cv2.imshow("2. Morphology + Dilate Result", edged_stable)
+        # 显示形态学处理结果
+        # cv2.imshow("2. After Morphology (Close + Dilate)", edged_stable)
         # cv2.waitKey(1)
         
-        # 轮廓检测
-        contours, _ = cv2.findContours(edged_stable, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # 2. 轮廓检测
+        contours, hierarchy = cv2.findContours(edged_stable, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
-        # 绘制所有检测到的轮廓（用于可视化）
-        contour_img = np.zeros_like(edged_stable)
-        # cv2.drawContours(contour_img, contours, -1, (255, 255, 255), 2)
+        # 显示所有检测到的轮廓
+        contour_img = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
+        cv2.drawContours(contour_img, contours, -1, (0, 255, 0), 2)  # 绿色绘制所有轮廓
         # cv2.imshow("3. All Detected Contours", contour_img)
         # cv2.waitKey(1)
         
-        # 筛选矩形
+        # 3. 筛选矩形
         rectangles = []
-        # 创建用于显示筛选过程的图像
-        filter_img = np.zeros_like(edged_stable)
-        
+        filter_img = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)  # 用于显示筛选过程
+
+        def calculate_angle(pt1, pt2, pt3):
+            """计算由三个点构成的角的角度（pt2为顶点）"""
+            # 向量pt2->pt1和pt2->pt3
+            vec1 = (pt1[0] - pt2[0], pt1[1] - pt2[1])
+            vec2 = (pt3[0] - pt2[0], pt3[1] - pt2[1])
+            
+            # 点积和模长
+            dot_product = vec1[0] * vec2[0] + vec1[1] * vec2[1]
+            len1 = (vec1[0]**2 + vec1[1]** 2) **0.5
+            len2 = (vec2[0]** 2 + vec2[1] ** 2) **0.5
+            
+            if len1 == 0 or len2 == 0:
+                return 0.0  # 避免除以零
+            
+            # 计算夹角（弧度转角度）
+            cos_theta = max(-1.0, min(1.0, dot_product / (len1 * len2)))  # 防止数值溢出
+            angle = np.arccos(cos_theta) * (180 / np.pi)
+            return angle
+
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
-            if area < 3000:  # 面积筛选
+            # 面积筛选
+            if area < 6000:
+                cv2.drawContours(filter_img, [contour], -1, (128, 128, 128), 1)
                 continue
-                
+            # print("检测到的面积：",area)
             # 多边形逼近
             epsilon = 0.02 * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
             
             # 顶点数和凸性筛选
-            if 4 <= len(approx) <= 6 and cv2.isContourConvex(approx):
-                # 非四边形时拟合矩形
-                if len(approx) != 4:
-                    rect = cv2.minAreaRect(contour)
-                    box = cv2.boxPoints(rect)
-                    approx = np.int0(box).reshape(-1, 1, 2)
+            if not (4 <= len(approx) <= 6 and cv2.isContourConvex(approx)):
+                cv2.drawContours(filter_img, [contour], -1, (0, 255, 255), 1)
+                continue
+            
+            # 非四边形时拟合矩形（确保最终是4个顶点）
+            if len(approx) != 4:
+                rect = cv2.minAreaRect(contour)
+                box = cv2.boxPoints(rect)
+                approx = np.int0(box).reshape(-1, 1, 2)
+            
+            # 提取四个角点（按顺序排列，确保相邻性）
+            corners = approx.reshape(4, 2)  # 转为4x2的角点列表
+            
+            # 检查四个角的角度是否在90°±25°范围内
+            valid_corners = True
+            for k in range(4):
+                # 三个连续点：前一个点、当前点（顶点）、后一个点（循环取点）
+                pt_prev = corners[(k - 1) % 4]
+                pt_current = corners[k]
+                pt_next = corners[(k + 1) % 4]
                 
-                x, y, w, h = cv2.boundingRect(approx)
-                aspect_ratio = w / h if h > 0 else 0
+                angle = calculate_angle(pt_prev, pt_current, pt_next)
                 
-                # 长宽比筛选
-                if 0.5 < aspect_ratio < 3.0:
-                    rectangles.append({
-                        'id': i,
-                        'contour': contour,
-                        'approx': approx,
-                        'bbox': (x, y, w, h),
-                        'area': area,
-                        'center': (x + w // 2, y + h // 2),
-                        'corners': approx.reshape(4, 2)
-                    })
-                    # 在筛选图像上绘制通过筛选的轮廓
-                    # cv2.drawContours(filter_img, [approx], -1, (255, 255, 255), 2)
-        
-        # 显示通过筛选的矩形轮廓
-        # cv2.imshow("4. Filtered Rectangles (After Area/Aspect Ratio Check)", filter_img)
+                # 角度不在65°~115°范围内，标记为无效
+                if not (65 <= angle <= 115):
+                    valid_corners = False
+                    break
+            
+            if not valid_corners:
+                # 用紫色绘制角度不符合的轮廓
+                cv2.drawContours(filter_img, [approx], -1, (128, 0, 128), 1)
+                continue
+            
+            # 长宽比筛选
+            x, y, w, h = cv2.boundingRect(approx)
+            aspect_ratio = w / h if h > 0 else 0
+            if not (0.8 < aspect_ratio < 1.5):
+                cv2.drawContours(filter_img, [approx], -1, (0, 0, 255), 1)
+                continue
+            
+            # 符合条件的矩形加入列表
+            rectangles.append({
+                'id': i,
+                'contour': contour,
+                'approx': approx,
+                'bbox': (x, y, w, h),
+                'area': area,
+                'center': (x + w // 2, y + h // 2),
+                'corners': corners
+            })
+            # 用蓝色绘制通过筛选的矩形
+            cv2.drawContours(filter_img, [approx], -1, (255, 0, 0), 2)
+
+        # 显示筛选结果
+        # cv2.imshow("4. Filtered Rectangles (Blue: Passed)", filter_img)
         # cv2.waitKey(1)
-        
+
+        # 4. 按面积排序
         rectangles.sort(key=lambda r: r['area'], reverse=True)
-        
+
         # 显示排序后的前10个最大矩形
-        top_rects_img = np.zeros_like(edged_stable)
-        for r in rectangles[:10]:
-            cv2.drawContours(top_rects_img, [r['approx']], -1, (255, 255, 255), 2)
+        top_rects_img = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
+        for idx, r in enumerate(rectangles[:10]):
+            color = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)][idx % 5]
+            cv2.drawContours(top_rects_img, [r['approx']], -1, color, 2)
+            cv2.putText(top_rects_img, f"Top {idx+1}", r['center'], 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         # cv2.imshow("5. Top 10 Largest Rectangles", top_rects_img)
         # cv2.waitKey(1)
-        
-        # 寻找嵌套矩形对
+
+        # 5. 寻找嵌套矩形对
         outer_rect = inner_rect = None
-        nested_img = np.zeros_like(edged_stable)
-        
+        nested_img = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
+
         for i, outer in enumerate(rectangles[:10]):
             x1, y1, w1, h1 = outer['bbox']
-            # 绘制当前外层矩形（蓝色）
-            cv2.rectangle(nested_img, (x1, y1), (x1 + w1, y1 + h1), (255, 0, 0), 2)
+            cv2.rectangle(nested_img, (x1, y1), (x1 + w1, y1 + h1), (255, 165, 0), 2)
             
             for j, inner in enumerate(rectangles):
                 if i == j:
@@ -276,28 +374,34 @@ class TargetDetectionNode(Node):
                 # 嵌套条件判断
                 margin = 5
                 is_nested = (x1 <= x2 + margin and y1 <= y2 + margin and 
-                        x1 + w1 >= x2 + w2 - margin and y1 + h1 >= y2 + h2 - margin)
+                            x1 + w1 >= x2 + w2 - margin and y1 + h1 >= y2 + h2 - margin)
                 
                 if is_nested:
                     area_ratio = inner['area'] / outer['area']
-                    if 0.6 < area_ratio < 0.9:
+                    if 0.7 < area_ratio < 0.9:
                         outer_rect = outer
                         inner_rect = inner
-                        # 绘制内层矩形（红色）
+                        cv2.rectangle(nested_img, (x1, y1), (x1 + w1, y1 + h1), (0, 255, 0), 2)
                         cv2.rectangle(nested_img, (x2, y2), (x2 + w2, y2 + h2), (0, 0, 255), 2)
+                        cv2.putText(nested_img, "Outer", (x1, y1 - 5), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        cv2.putText(nested_img, "Inner", (x2, y2 - 5), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
                         break
             if outer_rect is not None:
                 break
         
-        # 显示最终找到的嵌套矩形对（外层蓝色，内层红色）
-        # cv2.imshow("6. Nested Rectangles (Outer: Blue, Inner: Red)", nested_img)
-        # cv2.waitKey(1)  # 保持窗口显示，直到下一步调用
+        # 显示嵌套矩形检测结果
+        if outer_rect is None or inner_rect is None:
+            cv2.putText(nested_img, "No nested rectangles found", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        # cv2.imshow("6. Nested Rectangles Detection Result", nested_img)
+        # cv2.waitKey(1)
         
+        # 计算耗时
         rect_time = (time.time() - rect_start) * 1000
         self.timing_stats['rectangle_detection'].append(rect_time)
         
-        # 注意：如果需要在函数外继续显示，不要在这里销毁窗口
-        # 建议在主程序循环结束后调用 cv2.destroyAllWindows()
         return outer_rect, inner_rect
     
     def corners_changed_significantly(self, new_corners):
@@ -515,24 +619,20 @@ class TargetDetectionNode(Node):
                 cv_image, inner_rect
             )
             
-            # 4. 激光检测（仅当开启时）
-            blue_laser_point = None
-            if self.enable_laser_detection and outer_rect is not None and processed_data['hsv'] is not None:
-                blue_laser_point = self.detect_blue_purple_laser(
-                    processed_data['hsv'], target_center, self.laser_min_area, self.laser_max_area
-                )
-            
-            # 5. 渲染和发布
+            # 4. 渲染和发布
             render_start = time.time()
             result_image = self.render_results(
                 cv_image, outer_rect, inner_rect, 
-                target_center, target_circle, blue_laser_point
+                target_center, target_circle
             )
             render_time = (time.time() - render_start) * 1000
             self.timing_stats['rendering'].append(render_time)
             
-            # 6. 发布数据
-            self.publish_detection_data(target_center, target_circle, blue_laser_point)
+            # 5. 发布数据
+            self.publish_detection_data(target_center, target_circle)
+            
+            # 6. 发布透视变换矩阵（如果开启）
+            self.publish_perspective_matrix()
             
             # 7. 显示结果
             cv2.imshow('Target Detection Result', result_image)
@@ -556,104 +656,11 @@ class TargetDetectionNode(Node):
             import traceback
             traceback.print_exc()
 
-    def detect_blue_purple_laser(self, hsv_image, target_point=None, min_area=50, max_area=1500):
-        """检测矩形区域的蓝紫色激光点检测（优化版）"""
-        laser_start = time.time()
-        
-        h, w = hsv_image.shape[:2]
-        reference_point = target_point if target_point is not None else (w // 2, h // 2)
-        
-        # 从self.corners计算包围矩形并扩展
-        if hasattr(self, 'corners') and self.corners is not None and len(self.corners) >= 4:
-            # 提取角点的x和y坐标（假设corners是形状为(4,2)的数组）
-            x_coords = self.corners[:, 0]
-            y_coords = self.corners[:, 1]
-            
-            # 计算原始包围矩形
-            min_x = np.min(x_coords)
-            max_x = np.max(x_coords)
-            min_y = np.min(y_coords)
-            max_y = np.max(y_coords)
-            
-            # 扩展矩形：左右各扩10像素，向上扩15像素（向下不扩展）
-            extend_x = 10
-            extend_up = 15
-            x = max(0, min_x - extend_x)  # 左边界不超出图像
-            y = max(0, min_y - extend_up)  # 上边界不超出图像
-            width = min(w - x, (max_x + extend_x) - x)  # 右边界不超出图像
-            height = min(h - y, max_y - y)  # 下边界保持原始
-            
-            enclose_rect = (x, y, width, height)
-            
-            # 截取HSV图像中的对应区域
-            x1, y1, w1, h1 = enclose_rect
-            roi_hsv = hsv_image[y1:y1+h1, x1:x1+w1]
-        else:
-            # 如果没有有效的角点，使用全图
-            roi_hsv = hsv_image
-            enclose_rect = (0, 0, w, h)  # 全图作为默认区域
-        
-        # 蓝紫色激光的HSV阈值
-        lower_hsv = np.array([13, 54, 149])
-        upper_hsv = np.array([255, 164, 255])
-        mask = cv2.inRange(roi_hsv, lower_hsv, upper_hsv)
-        
-        # 形态学操作
-        kernel = np.ones((3, 3), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, kernel, iterations=1)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel, iterations=1)
-        
-        # 查找轮廓
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        laser_point = None
-        best_score = -1
-        
-        # 筛选符合条件的轮廓
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area < min_area or area > max_area:
-                continue
-            
-            # 计算轮廓中心（注意：坐标需要转换回原图坐标系）
-            M = cv2.moments(cnt)
-            if M["m00"] == 0:
-                continue
-            # 加上ROI的偏移量，转换为原图坐标
-            x_roi = int(M["m10"] / M["m00"])
-            y_roi = int(M["m01"] / M["m00"])
-            x = x_roi + enclose_rect[0]
-            y = y_roi + enclose_rect[1]
-            
-            # 计算距离基准点的距离
-            dx = x - reference_point[0]
-            dy = y - reference_point[1]
-            distance = np.sqrt(dx**2 + dy**2)
-            
-            # 归一化距离
-            max_possible_distance = np.sqrt((w//2)**2 + (h//2)** 2)
-            normalized_distance = distance / max_possible_distance
-            
-            # 计算评分
-            area_score = area / max_area
-            distance_score = 1 - normalized_distance
-            score = 0.3 * area_score + 0.7 * distance_score
-            
-            # 更新最优激光点
-            if score > best_score:
-                best_score = score
-                laser_point = (x, y)
-        
-        laser_time = (time.time() - laser_start) * 1000
-        self.timing_stats['laser_detection'].append(laser_time)
-        
-        return laser_point
-
-
-    def render_results(self, frame, outer_rect, inner_rect, target_center, target_circle, blue_laser_point):
+    def render_results(self, frame, outer_rect, inner_rect, target_center, target_circle):
         """渲染检测结果"""
         result_image = frame.copy()
         
-        rect_detected = circle_detected = blue_laser_detected = False
+        rect_detected = circle_detected = False
         
         # 计算图像中心
         image_center_x = frame.shape[1] // 2
@@ -701,22 +708,6 @@ class TargetDetectionNode(Node):
                 tc_x, tc_y, tc_r = target_circle
                 cv2.circle(result_image, (tc_x, tc_y), tc_r, (0, 255, 0), 2)  # 目标圆，线宽为2
         
-        # 绘制激光点（仅当激光检测开启时）
-        if blue_laser_point and self.enable_laser_detection:
-            blue_laser_detected = True
-            cv2.circle(result_image, blue_laser_point, 1, (255, 0, 0), 3)
-            cv2.circle(result_image, blue_laser_point, 1, (255, 0, 0), -1)
-            cv2.putText(result_image, f"Laser Point: ({blue_laser_point[0]}, {blue_laser_point[1]})", 
-                       (blue_laser_point[0]+15, blue_laser_point[1]+15), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-            
-            if target_center:
-                err_x = blue_laser_point[0] - target_center[0]
-                err_y = blue_laser_point[1] - target_center[1]
-                cv2.line(result_image, target_center, blue_laser_point, (255, 255, 0), 2)
-                cv2.putText(result_image, f"Laser Error: ({err_x}, {err_y})", 
-                           (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-        
         # 添加状态信息
         cv2.putText(result_image, f"FPS: {self.fps:.1f}", (10, 30), 
                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
@@ -728,19 +719,12 @@ class TargetDetectionNode(Node):
         cv2.putText(result_image, f"Detection Status: {'Detected' if target_center else 'Not Detected'}", 
                    (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
         
-        # 激光检测状态
-        laser_status = "Laser Detection: ON" if self.enable_laser_detection else "Laser Detection: OFF"
-        cv2.putText(result_image, laser_status, (10, 150), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
         # 目标圆面积
         cv2.putText(result_image, f"target circle area: {self.target_circle_area}", (10, 200), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
         # 状态显示
-        if rect_detected and circle_detected and blue_laser_detected:
-            status_text, status_color = "All Detected", (0, 255, 0)
-        elif rect_detected and circle_detected:
+        if rect_detected and circle_detected:
             status_text, status_color = "Target Detected", (0, 255, 255)
         elif rect_detected:
             status_text, status_color = "Rectangle Detected", (0, 165, 255)
@@ -757,18 +741,13 @@ class TargetDetectionNode(Node):
         
         return result_image
     
-    def publish_detection_data(self, target_center, target_circle, blue_laser_point):
+    def publish_detection_data(self, target_center, target_circle):
         """发布检测数据"""
-        # if blue_laser_point and  self.enable_laser_detection:
-        #     target_message = f"p,{blue_laser_point[0]},{blue_laser_point[1]}"
-        #     msg_pub = String()
-        #     msg_pub.data = target_message
-        #     self.target_publisher.publish(msg_pub)
         if target_center:
             if self.target_circle_area <= 9000: # 向上偏移15
-                target_message = f"p,{target_center[0]},{target_center[1]-15}"
+                target_message = f"p,{target_center[0]},{target_center[1]}"
             elif self.target_circle_area >= 20000: # 向下偏移15
-                target_message = f"p,{target_center[0]},{target_center[1]+15}"
+                target_message = f"p,{target_center[0]},{target_center[1]}"
             else:
                 target_message = f"p,{target_center[0]},{target_center[1]}"
             msg_pub = String()

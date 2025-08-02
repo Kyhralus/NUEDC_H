@@ -4,6 +4,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from std_srvs.srv import SetBool
 import re
 import time
 import wiringpi
@@ -17,8 +18,8 @@ class GimbalController(Node):
         super().__init__('gimbal_controller')
         
         # 图像中心配置 - 可灵活修改
-        self.image_width = 1280
-        self.image_height = 1080
+        self.image_width = 960
+        self.image_height = 720
         self.image_center_x = self.image_width // 2   # 400
         self.image_center_y = self.image_height // 2  # 300
         
@@ -40,7 +41,7 @@ class GimbalController(Node):
         self.laser_safety_enabled = False # 激光安全状态（True=允许激光开启，False=禁止激光开启）
         
         # 激光状态管理
-        self.laser_mode = "continuous"      # 激光模式: "auto_off" 或 "continuous"
+        self.laser_mode = "auto_off"      # 激光模式: "auto_off" 或 "continuous"
         self.laser_opened = False         # 激光状态标志
         self.laser_shooting_time = 1.0    # 激光打开时间(1.0s)
         self.laser_timer = None           # 激光定时器
@@ -69,7 +70,12 @@ class GimbalController(Node):
             10
         )
         
-        # Removed service client creation
+        # 创建服务端 - 激光模式切换服务
+        self.laser_mode_service = self.create_service(
+            SetBool,
+            'switch_laser_mode',
+            self.laser_mode_service_callback
+        )
 
         # 误差统计
         self.error_count = 0
@@ -186,7 +192,7 @@ class GimbalController(Node):
             # 激光开启判定
             if abs(x_error) <= self.laser_error_threshold and abs(y_error) <= self.laser_error_threshold:
                 self.laser_counter += 1
-                if self.laser_counter >= self.laser_success_required_count:
+                if self.laser_counter >= self.laser_success_required_count:   # 判定打中
                     self.get_logger().info(f"连续{self.laser_success_required_count}次误差小于等于{self.laser_error_threshold}，激光可开启")
                     # 根据激光模式控制激光
                     if self.laser_mode == "auto_off":
@@ -194,6 +200,14 @@ class GimbalController(Node):
                     elif self.laser_mode == "continuous":
                         self.control_laser_continuous(True)
                     self.laser_counter = 0 # 满足条件后重置计数器
+
+                    # 发送打中的状态个小车
+                    cmd_msg = String()
+                    cmd_msg.data = f"@1\r"
+                    self.gimbal_publisher.publish(cmd_msg)
+                    self.get_logger().debug(f'发送云台指令: {cmd_msg.data}')
+
+
             else:
                 self.laser_counter = 0 # 不满足条件则重置计数器
             
@@ -301,6 +315,42 @@ class GimbalController(Node):
             self.get_logger().info("激光已处于关闭状态或未开启，无需操作。")
     
     
+    def laser_mode_service_callback(self, request, response):
+        """激光模式切换服务回调函数"""
+        try:
+            if request.data:
+                # 收到True时，切换到continuous模式
+                old_mode = self.laser_mode
+                self.laser_mode = "continuous"
+                
+                # 如果从自动模式切换到持续模式，需要处理当前状态
+                if old_mode == "auto_off" and self.laser_timer:
+                    self.laser_timer.cancel()
+                    self.laser_timer = None
+                
+                self.get_logger().info(f"激光模式已通过服务切换: {old_mode} -> continuous")
+                response.success = True
+                response.message = f"激光模式已切换为continuous"
+            else:
+                # 收到False时，切换到auto_off模式
+                old_mode = self.laser_mode
+                self.laser_mode = "auto_off"
+                
+                # 如果从持续模式切换到自动模式，需要关闭激光
+                if old_mode == "continuous" and self.laser_opened:
+                    self.control_laser_continuous(False)
+                
+                self.get_logger().info(f"激光模式已通过服务切换: {old_mode} -> auto_off")
+                response.success = True
+                response.message = f"激光模式已切换为auto_off"
+                
+        except Exception as e:
+            self.get_logger().error(f"激光模式切换服务出错: {str(e)}")
+            response.success = False
+            response.message = f"激光模式切换失败: {str(e)}"
+        
+        return response
+
     def switch_laser_mode(self, new_mode: str):
         """切换激光模式"""
         if new_mode in ["auto_off", "continuous"]:

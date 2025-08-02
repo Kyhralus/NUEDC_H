@@ -49,9 +49,9 @@ def capture_images():
                 print("无法获取帧")
                 break
             # 裁剪中心区域
-            cropped = crop_center(frame, 640, 480)
+            cropped = crop_center(frame, 960, 720)
             # 在中心画圆点
-            cv2.circle(cropped, (320, 240), 5, (0, 255, 255), -1)
+            cv2.circle(cropped, (480, 360), 5, (0, 255, 255), -1)
             cv2.imshow('Camera View', cropped)
             # cv2.imshow('Camera View 1290X1080', frame)
             key = cv2.waitKey(1)
