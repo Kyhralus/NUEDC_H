@@ -115,7 +115,7 @@ class MainController(Node): # Renamed
             self.get_logger().info("发布任务状态: task3")
 
         # 发挥部分1：靶心跟踪 --- 一圈， 
-        elif cmd == "r40":  
+        elif cmd == "r40":  # 瞄准后发送 '@1/r'
             self.task_status_pub.publish(String(data="task4"))
             self.get_logger().info("发布任务状态: task4")
             # 收到r40指令时，切换激光模式为continuous
