@@ -106,7 +106,7 @@ class TargetDetectionNode(Node):
                 ret, frame = self.cap.read()
                 if ret:
                     # 从图像中心截取800x600区域作为后续处理对象
-                    cropped_frame = self.crop_center_image(frame, 960, 500)
+                    cropped_frame = self.crop_center_image(frame, 1290, 1080)
                     
                     # 非阻塞地放入队列
                     try:
@@ -162,13 +162,14 @@ class TargetDetectionNode(Node):
         
         # 合并形态学处理和Canny边缘检测
         kernel = np.ones((3, 3), np.uint8)
-        morphed = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, kernel)
+        morphed = cv2.morphologyEx(blurred, cv2.MORPH_ERODE, kernel)
+        morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel)
         edged = cv2.Canny(morphed, 40, 120)
         
         # 只在需要时转换HSV（激光检测开启时）
         hsv = None
-        if self.enable_laser_detection:
-            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # if self.enable_laser_detection:
+        #     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
         preprocess_time = (time.time() - preprocess_start) * 1000
         self.timing_stats['preprocess'].append(preprocess_time)
@@ -181,41 +182,58 @@ class TargetDetectionNode(Node):
         }
     
     def detect_nested_rectangles_optimized(self, edged_image):
-        """优化的嵌套矩形检测 - 增加稳定性"""
+        """优化的嵌套矩形检测 - 增加稳定性，同时显示每一步结果"""
         rect_start = time.time()
+        
+        # 显示原始边缘图像
+        # cv2.imshow("1. Original Edged Image", edged_image)
+        # cv2.waitKey(1)  # 1ms延迟，允许窗口刷新
         
         # 对边缘图像进行额外的形态学操作以提高稳定性
         kernel = np.ones((2, 2), np.uint8)
         edged_stable = cv2.morphologyEx(edged_image, cv2.MORPH_CLOSE, kernel)
         edged_stable = cv2.dilate(edged_stable, kernel, iterations=1)
         
+        # 显示形态学处理后的边缘图像
+        # cv2.imshow("2. Morphology + Dilate Result", edged_stable)
+        # cv2.waitKey(1)
+        
         # 轮廓检测
         contours, _ = cv2.findContours(edged_stable, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
+        # 绘制所有检测到的轮廓（用于可视化）
+        contour_img = np.zeros_like(edged_stable)
+        # cv2.drawContours(contour_img, contours, -1, (255, 255, 255), 2)
+        # cv2.imshow("3. All Detected Contours", contour_img)
+        # cv2.waitKey(1)
+        
         # 筛选矩形
         rectangles = []
+        # 创建用于显示筛选过程的图像
+        filter_img = np.zeros_like(edged_stable)
+        
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
-            if area < 3000:  # 降低面积阈值以提高检测敏感度
+            if area < 3000:  # 面积筛选
                 continue
                 
-            # 使用更宽松的多边形逼近
-            epsilon = 0.02 * cv2.arcLength(contour, True)  # 从0.03降低到0.02
+            # 多边形逼近
+            epsilon = 0.02 * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, epsilon, True)
             
-            # 允许4-6个顶点的多边形，增加检测成功率
+            # 顶点数和凸性筛选
             if 4 <= len(approx) <= 6 and cv2.isContourConvex(approx):
-                # 如果不是严格的四边形，尝试拟合矩形
+                # 非四边形时拟合矩形
                 if len(approx) != 4:
                     rect = cv2.minAreaRect(contour)
                     box = cv2.boxPoints(rect)
                     approx = np.int0(box).reshape(-1, 1, 2)
                 
                 x, y, w, h = cv2.boundingRect(approx)
-                
-                # 添加长宽比检查，但更宽松
                 aspect_ratio = w / h if h > 0 else 0
-                if 1.0 < aspect_ratio < 3.0:  # 允许更大的长宽比范围
+                
+                # 长宽比筛选
+                if 0.5 < aspect_ratio < 3.0:
                     rectangles.append({
                         'id': i,
                         'contour': contour,
@@ -225,37 +243,61 @@ class TargetDetectionNode(Node):
                         'center': (x + w // 2, y + h // 2),
                         'corners': approx.reshape(4, 2)
                     })
+                    # 在筛选图像上绘制通过筛选的轮廓
+                    # cv2.drawContours(filter_img, [approx], -1, (255, 255, 255), 2)
+        
+        # 显示通过筛选的矩形轮廓
+        # cv2.imshow("4. Filtered Rectangles (After Area/Aspect Ratio Check)", filter_img)
+        # cv2.waitKey(1)
         
         rectangles.sort(key=lambda r: r['area'], reverse=True)
         
-        # 寻找嵌套矩形对 - 更宽松的条件
-        outer_rect = inner_rect = None
+        # 显示排序后的前10个最大矩形
+        top_rects_img = np.zeros_like(edged_stable)
+        for r in rectangles[:10]:
+            cv2.drawContours(top_rects_img, [r['approx']], -1, (255, 255, 255), 2)
+        # cv2.imshow("5. Top 10 Largest Rectangles", top_rects_img)
+        # cv2.waitKey(1)
         
-        for i, outer in enumerate(rectangles[:10]):  # 只检查前10个最大的矩形
+        # 寻找嵌套矩形对
+        outer_rect = inner_rect = None
+        nested_img = np.zeros_like(edged_stable)
+        
+        for i, outer in enumerate(rectangles[:10]):
             x1, y1, w1, h1 = outer['bbox']
+            # 绘制当前外层矩形（蓝色）
+            cv2.rectangle(nested_img, (x1, y1), (x1 + w1, y1 + h1), (255, 0, 0), 2)
+            
             for j, inner in enumerate(rectangles):
                 if i == j:
                     continue
                 x2, y2, w2, h2 = inner['bbox']
                 
-                # 更宽松的嵌套条件
-                margin = 5  # 允许5像素的误差
+                # 嵌套条件判断
+                margin = 5
                 is_nested = (x1 <= x2 + margin and y1 <= y2 + margin and 
-                           x1 + w1 >= x2 + w2 - margin and y1 + h1 >= y2 + h2 - margin)
+                        x1 + w1 >= x2 + w2 - margin and y1 + h1 >= y2 + h2 - margin)
                 
                 if is_nested:
                     area_ratio = inner['area'] / outer['area']
-                    if 0.6 < area_ratio < 0.9:  # 更宽松的面积比
+                    if 0.6 < area_ratio < 0.9:
                         outer_rect = outer
                         inner_rect = inner
+                        # 绘制内层矩形（红色）
+                        cv2.rectangle(nested_img, (x2, y2), (x2 + w2, y2 + h2), (0, 0, 255), 2)
                         break
             if outer_rect is not None:
                 break
-
+        
+        # 显示最终找到的嵌套矩形对（外层蓝色，内层红色）
+        # cv2.imshow("6. Nested Rectangles (Outer: Blue, Inner: Red)", nested_img)
+        # cv2.waitKey(1)  # 保持窗口显示，直到下一步调用
         
         rect_time = (time.time() - rect_start) * 1000
         self.timing_stats['rectangle_detection'].append(rect_time)
         
+        # 注意：如果需要在函数外继续显示，不要在这里销毁窗口
+        # 建议在主程序循环结束后调用 cv2.destroyAllWindows()
         return outer_rect, inner_rect
     
     def corners_changed_significantly(self, new_corners):

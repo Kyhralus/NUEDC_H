@@ -17,8 +17,8 @@ class GimbalController(Node):
         super().__init__('gimbal_controller')
         
         # 图像中心配置 - 可灵活修改
-        self.image_width = 960
-        self.image_height = 500
+        self.image_width = 1280
+        self.image_height = 1080
         self.image_center_x = self.image_width // 2   # 400
         self.image_center_y = self.image_height // 2  # 300
         
@@ -40,7 +40,7 @@ class GimbalController(Node):
         self.laser_safety_enabled = False # 激光安全状态（True=允许激光开启，False=禁止激光开启）
         
         # 激光状态管理
-        self.laser_mode = "auto_off"      # 激光模式: "auto_off" 或 "continuous"
+        self.laser_mode = "continuous"      # 激光模式: "auto_off" 或 "continuous"
         self.laser_opened = False         # 激光状态标志
         self.laser_shooting_time = 1.0    # 激光打开时间(1.0s)
         self.laser_timer = None           # 激光定时器
