@@ -3,6 +3,20 @@ mkdir NUEDC_H
 cd NUEDC_H/
 ros2 pkg create --build-type ament_python automatic_aiming \--dependencies rclpy geometry_msgs nav_msgs sensor_msgs std_msgs \--description "NUEDC problem H"
 
+# 确保日志目录存在并设置正确权限
+# mkdir -p /home/orangepi/code_ros2/run_log
+# chown orangepi:orangepi /home/orangepi/code_ros2/run_log
+# chmod 755 /home/orangepi/ros2_workspace/NUEDC_H/run_log
+
+
+# 重新加载 systemd 配置并启用服务，这样就会开机自启动+循环启动了
+sudo systemctl daemon-reload
+sudo systemctl enable Kyhralus.service
+sudo systemctl start Kyhralus.service
+
+# 可以使用以下命令检查服务是否正常运行
+sudo systemctl status Kyhralus.service
+
 # 编译
 colcon build --symlink-install # 动态编译，不需要重新编译
 # 隔离编译 --- 为了使每个包的编译文件处于同一文件夹

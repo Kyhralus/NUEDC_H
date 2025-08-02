@@ -1,0 +1,30 @@
+[2.184s] Invoking command in '/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming': PYTHONPATH=/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/build --no-deps symlink_data
+[2.596s] running develop
+[2.813s] running egg_info
+[2.814s] writing automatic_aiming.egg-info/PKG-INFO
+[2.814s] writing dependency_links to automatic_aiming.egg-info/dependency_links.txt
+[2.815s] writing entry points to automatic_aiming.egg-info/entry_points.txt
+[2.815s] writing requirements to automatic_aiming.egg-info/requires.txt
+[2.816s] writing top-level names to automatic_aiming.egg-info/top_level.txt
+[2.818s] reading manifest file 'automatic_aiming.egg-info/SOURCES.txt'
+[2.824s] writing manifest file 'automatic_aiming.egg-info/SOURCES.txt'
+[2.826s] running build_ext
+[2.827s] Creating /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/python3.10/site-packages/automatic-aiming.egg-link (link to .)
+[2.827s] Installing camera_publisher script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.828s] Installing circle_calc_perspective script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.828s] Installing ekf_filter_node script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.830s] Installing gimbal_controller script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.830s] Installing laser_tuner script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.830s] Installing main_controller script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.831s] Installing speakr_node script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.831s] Installing target_detect script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.831s] Installing test_node script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.831s] Installing uart1_receiver script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.831s] Installing uart1_sender script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.832s] Installing uart3_receiver script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.832s] Installing uart3_sender script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.832s] Installing warp_data_publisher script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+[2.832s] 
+[2.832s] Installed /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming
+[2.832s] running symlink_data
+[2.908s] Invoked command in '/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming' returned '0': PYTHONPATH=/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/build --no-deps symlink_data

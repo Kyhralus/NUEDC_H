@@ -674,9 +674,9 @@ class TargetDetectionService(Node):
             # 7. 显示结果
             cv2.imshow('Target Detection Result', result_image)
             
-            # 显示透视变换结果
-            if perspective_vis is not None:
-                cv2.imshow('Perspective Transform Visualization', perspective_vis)
+            # # 显示透视变换结果
+            # if perspective_vis is not None:
+            #     cv2.imshow('Perspective Transform Visualization', perspective_vis)
             
             cv2.waitKey(1)
             
@@ -725,6 +725,7 @@ class TargetDetectionService(Node):
             circle_detected = True
             
             if target_center:
+                target_center = (target_center[0], target_center[1])
                 cv2.circle(result_image, target_center, 5, (0, 0, 255), -1)  # 靶心点
                 cv2.putText(result_image, f"Target Center: ({target_center[0]}, {target_center[1]})", 
                            (target_center[0]+15, target_center[1]-15), 
@@ -782,11 +783,11 @@ class TargetDetectionService(Node):
             
         if target_center:
             if self.target_circle_area <= 9000: # 向上偏移15
-                target_message = f"p,{target_center[0]},{target_center[1]}"
+                target_message = f"p,{target_center[0]},{target_center[1]-10}"
             elif self.target_circle_area >= 20000: # 向下偏移15
-                target_message = f"p,{target_center[0]},{target_center[1]}"
+                target_message = f"p,{target_center[0]},{target_center[1]-10}"
             else:
-                target_message = f"p,{target_center[0]},{target_center[1]}"
+                target_message = f"p,{target_center[0]},{target_center[1]-10}-"
             msg_pub = String()
             msg_pub.data = target_message
             self.target_publisher.publish(msg_pub)

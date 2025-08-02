@@ -1,0 +1,7 @@
+[19:45:32] [uart1_receiver] [INFO] [1754135132.723844626] [uart1_receiver]: 创建uart1_receiver_topic发布方成功
+[19:45:32] [uart1_receiver] [INFO] [1754135132.724659529] [uart1_receiver]: 串口 /dev/ttyS1 已打开
+[19:45:32] [uart1_receiver] [INFO] [1754135132.725255977] [uart1_receiver]: uart1_receiver @ /dev/ttyS1 Buad: 115200 init success
+[19:45:33] [uart1_receiver] [INFO] [1754135133.905868961] [uart1_receiver]: 接收数据发布到 uart1_receiver_topic | 数据：r00
+[19:45:36] [uart1_receiver] [INFO] [1754135136.205945122] [uart1_receiver]: 接收数据发布到 uart1_receiver_topic | 数据：r00
+[19:45:36] [uart1_receiver] [INFO] [1754135136.656243176] [uart1_receiver]: 接收数据发布到 uart1_receiver_topic | 数据：r40
+[19:45:38] [uart1_receiver] [INFO] [1754135138.896015352] [uart1_receiver]: 接收数据发布到 uart1_receiver_topic | 数据：r00

@@ -1,0 +1,7 @@
+[17:59:06] [gimbal_controller] [INFO] [1754128746.811551656] [gimbal_controller]: 云台控制器节点已启动
+[17:59:06] [gimbal_controller] [INFO] [1754128746.812174938] [gimbal_controller]: 图像中心设置为: (480, 360)
+[17:59:06] [gimbal_controller] [INFO] [1754128746.812640431] [gimbal_controller]: 激光模式: continuous (auto_off=瞄准后1秒关闭, continuous=持续开启)
+[17:59:06] [gimbal_controller] [INFO] [1754128746.813069466] [gimbal_controller]: 激光安全开关: GPIO5 (低电平:禁用激光, 高电平:允许激光)
+[17:59:06] [gimbal_controller] [INFO] [1754128746.813472835] [gimbal_controller]: 订阅话题: /target_data
+[17:59:06] [gimbal_controller] [INFO] [1754128746.813879412] [gimbal_controller]: 发布话题: /uart1_sender_topic (30Hz)
+[17:59:06] [gimbal_controller] [INFO] [1754128746.814284823] [gimbal_controller]: 控制频率: 30Hz

@@ -11,7 +11,7 @@ def capture_images():
             return
         
         # 尝试打开摄像头
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             print("错误：无法打开摄像头")
             print("可能原因：")
@@ -26,7 +26,7 @@ def capture_images():
         # 设置目标分辨率（1920x1080）
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        
+        cap.set(cv2.CAP_PROP_FPS, 120)
         # 等待设置生效
         time.sleep(1)
         
@@ -37,11 +37,28 @@ def capture_images():
         
         img_count = 10
         
-        def crop_center(img, crop_w=640, crop_h=480):
+        def crop_center_and_flip(img, crop_w=640, crop_h=480, flip_code=1):
+            """
+            从图像中心裁剪指定尺寸，然后进行翻转
+            
+            参数:
+                img: 输入图像
+                crop_w: 裁剪宽度
+                crop_h: 裁剪高度
+                flip_code: 翻转模式（1:水平翻转, 0:垂直翻转, -1:180度翻转）
+            返回:
+                裁剪并翻转后的图像
+            """
+            # 中心裁剪
             h, w = img.shape[:2]
             start_x = max(0, (w - crop_w) // 2)
             start_y = max(0, (h - crop_h) // 2)
-            return img[start_y:start_y+crop_h, start_x:start_x+crop_w]
+            cropped = img[start_y:start_y+crop_h, start_x:start_x+crop_w]
+            
+            # 翻转图像（OpenCV底层优化，速度快）
+            flipped = cv2.flip(cropped, flip_code)
+        
+            return flipped
         
         while True:
             ret, frame = cap.read()
@@ -49,9 +66,9 @@ def capture_images():
                 print("无法获取帧")
                 break
             # 裁剪中心区域
-            cropped = crop_center(frame, 960, 720)
+            cropped = crop_center_and_flip(frame, 960, 720, 0)
             # 在中心画圆点
-            cv2.circle(cropped, (480, 360), 5, (0, 255, 255), -1)
+            cv2.circle(cropped, (480, 360), 3, (0, 255, 255), -1)
             cv2.imshow('Camera View', cropped)
             # cv2.imshow('Camera View 1290X1080', frame)
             key = cv2.waitKey(1)

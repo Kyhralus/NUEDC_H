@@ -38,10 +38,10 @@ class GimbalController(Node):
         
         # 激光安全控制开关
         self.laser_switch_pin = 5        # GPIO5用于激光安全开关(输入模式)
-        self.laser_safety_enabled = False # 激光安全状态（True=允许激光开启，False=禁止激光开启）
+        self.laser_safety_enabled = True # 激光安全状态（True=允许激光开启，False=禁止激光开启）
         
         # 激光状态管理
-        self.laser_mode = "auto_off"      # 激光模式: "auto_off" 或 "continuous"
+        self.laser_mode = "continuous"      # 激光模式: "auto_off" 或 "continuous"
         self.laser_opened = False         # 激光状态标志
         self.laser_shooting_time = 1.0    # 激光打开时间(1.0s)
         self.laser_timer = None           # 激光定时器
@@ -153,7 +153,7 @@ class GimbalController(Node):
         x_error = target_x - self.image_center_x
         y_error = target_y - self.image_center_y
         
-        return x_error, y_error
+        return -x_error, y_error
     
     def format_gimbal_command(self, x_error, y_error):
         """
@@ -225,94 +225,143 @@ class GimbalController(Node):
             self.get_logger().error(f'处理目标数据时出错: {str(e)}')
 
     def check_laser_safety_switch(self):
-        """每1秒检查一次激光安全开关状态"""
-        switch_state = wiringpi.digitalRead(self.laser_switch_pin)
-        old_state = self.laser_safety_enabled
-        
-        # 更新安全状态
-        self.laser_safety_enabled = (switch_state == GPIO.HIGH)
-        
-        # 记录状态变化
-        if self.laser_safety_enabled != old_state:
-            if self.laser_safety_enabled:
-                self.get_logger().info("激光安全开关已切换到高电平，允许激光开启")
-            else:
-                self.get_logger().info("激光安全开关已切换到低电平，禁止激光开启")
-        
-        # 如果安全开关为低电平且激光当前是开启状态，则强制关闭激光
-        if not self.laser_safety_enabled and self.laser_opened:
+        """定期检查激光总开关状态 - 安全监控"""
+        try:
+            # 读取总开关状态
+            switch_state = wiringpi.digitalRead(self.laser_switch_pin)
+            old_state = self.laser_safety_enabled
+            current_state = (switch_state == GPIO.HIGH)
+            
+            # 更新安全状态
+            self.laser_safety_enabled = current_state
+            
+            # 记录状态变化
+            if current_state != old_state:
+                if current_state:
+                    self.get_logger().info("激光总开关已切换到高电平，允许激光开启")
+                else:
+                    self.get_logger().warning("激光总开关已切换到低电平，禁止激光开启")
+            
+            # 安全保护：如果总开关为低电平且激光当前开启，立即强制关闭
+            if not current_state and self.laser_opened:
+                self.emergency_laser_shutdown("总开关处于低电平")
+                
+        except Exception as e:
+            self.get_logger().error(f"检查激光安全开关时出错: {str(e)}")
+            # 出错时为安全起见，强制关闭激光
+            if self.laser_opened:
+                self.emergency_laser_shutdown("安全检查异常")
+    
+    def emergency_laser_shutdown(self, reason: str):
+        """紧急关闭激光 - 用于安全保护"""
+        try:
+            # 立即关闭激光输出
             wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
             self.laser_opened = False
-            self.get_logger().info("激光安全开关处于低电平，强制关闭激光")
+            self.get_logger().warning(f"紧急关闭激光: {reason}")
             
-            # 如果有定时器，取消它
+            # 取消所有激光相关定时器
             if self.laser_timer:
                 self.laser_timer.cancel()
                 self.laser_timer = None
+                self.get_logger().info("激光自动关闭定时器已取消")
+                
+        except Exception as e:
+            self.get_logger().error(f"紧急关闭激光时出错: {str(e)}")
     
     def is_laser_allowed(self):
-        """检查当前是否允许激光开启"""
-        # 使用缓存的安全状态而不是每次都读取GPIO
+        """检查当前是否允许激光开启 - 双重安全检查"""
+        # 实时读取总开关状态（安全第一，每次都检查）
+        master_switch_state = wiringpi.digitalRead(self.laser_switch_pin)
+        master_switch_enabled = (master_switch_state == GPIO.HIGH)
+        
+        # 更新缓存状态
+        if self.laser_safety_enabled != master_switch_enabled:
+            self.laser_safety_enabled = master_switch_enabled
+            status_msg = "允许" if master_switch_enabled else "禁止"
+            self.get_logger().info(f"激光总开关状态变化: {status_msg}激光开启")
+        
         return self.laser_safety_enabled
+    
+    def safe_laser_on(self):
+        """安全地开启激光 - 双重检查后开启"""
+        # 第一重检查：总开关状态
+        if not self.is_laser_allowed():
+            self.get_logger().warning("激光总开关处于低电平，禁止开启激光")
+            return False
+        
+        # 第二重检查：当前激光状态
+        if self.laser_opened:
+            self.get_logger().debug("激光已处于开启状态，无需重复开启")
+            return True
+        
+        # 安全开启激光
+        try:
+            wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
+            self.laser_opened = True
+            self.get_logger().info("激光已安全开启")
+            return True
+        except Exception as e:
+            self.get_logger().error(f"激光开启失败: {str(e)}")
+            return False
+    
+    def safe_laser_off(self):
+        """安全地关闭激光"""
+        if not self.laser_opened:
+            self.get_logger().debug("激光已处于关闭状态")
+            return True
+        
+        try:
+            wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
+            self.laser_opened = False
+            self.get_logger().info("激光已安全关闭")
+            return True
+        except Exception as e:
+            self.get_logger().error(f"激光关闭失败: {str(e)}")
+            return False
     
     def control_laser_auto_off(self):
         """自动关闭模式：开启激光1秒后自动关闭"""
-        # 先检查安全开关是否允许激光开启
-        if not self.is_laser_allowed():
-            self.get_logger().info("激光安全开关处于低电平，禁止开启激光")
-            return
-            
-        if not self.laser_opened:
-            # 开启激光 (高电平是开)
-            wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
-            self.laser_opened = True
+        # 使用安全开启函数
+        if self.safe_laser_on():
             self.get_logger().info(f"激光已开启 (自动关闭模式，{self.laser_shooting_time}秒后关闭)")
             
             # 取消之前的定时器（如果存在）
             if self.laser_timer:
                 self.laser_timer.cancel()
+                self.laser_timer = None
             
             # 创建定时器，延时关闭激光
             self.laser_timer = self.create_timer(
                 self.laser_shooting_time, 
                 self.close_laser_auto
             )
-            self.get_logger().info(f"定时器已创建，将在 {self.laser_shooting_time} 秒后调用 close_laser_auto")
+            self.get_logger().debug(f"定时器已创建，将在 {self.laser_shooting_time} 秒后自动关闭激光")
     
     def control_laser_continuous(self, turn_on: bool):
         """持续开启模式：手动控制激光开关"""
         if turn_on:
-            # 先检查安全开关是否允许激光开启
-            if not self.is_laser_allowed():
-                self.get_logger().info("激光安全开关处于低电平，禁止开启激光")
-                return
-                
-            if not self.laser_opened:
-                # 开启激光
-                wiringpi.digitalWrite(self.laser_pin, GPIO.HIGH)
-                self.laser_opened = True
+            # 使用安全开启函数
+            if self.safe_laser_on():
                 self.get_logger().info("激光已开启 (持续开启模式)")
-        elif self.laser_opened:
-            # 关闭激光
-            wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
-            self.laser_opened = False
-            self.get_logger().info("激光已关闭 (持续开启模式)")
+        else:
+            # 使用安全关闭函数
+            if self.safe_laser_off():
+                self.get_logger().info("激光已关闭 (持续开启模式)")
     
     def close_laser_auto(self):
         """自动关闭激光（用于自动关闭模式）"""
-        self.get_logger().info("尝试关闭激光...")
-        if self.laser_opened:
-            wiringpi.digitalWrite(self.laser_pin, GPIO.LOW)
-            self.laser_opened = False
+        self.get_logger().debug("定时器触发，准备自动关闭激光...")
+        
+        # 使用安全关闭函数
+        if self.safe_laser_off():
             self.get_logger().info("激光已自动关闭")
-            
-            # 清理定时器，确保只执行一次
-            if self.laser_timer:
-                self.laser_timer.cancel()
-                self.laser_timer = None
-            self.get_logger().info("定时器已取消并清空。")
-        else:
-            self.get_logger().info("激光已处于关闭状态或未开启，无需操作。")
+        
+        # 清理定时器，确保只执行一次
+        if self.laser_timer:
+            self.laser_timer.cancel()
+            self.laser_timer = None
+            self.get_logger().debug("自动关闭定时器已清理")
     
     
     def laser_mode_service_callback(self, request, response):
@@ -396,6 +445,7 @@ class GimbalController(Node):
 def main(args=None):
     """主函数"""
     rclpy.init(args=args)
+    gimbal_controller = None
     
     try:
         # 创建云台控制器节点
@@ -409,18 +459,42 @@ def main(args=None):
     except Exception as e:
         print(f'云台控制器节点运行出错: {str(e)}')
     finally:
-        # 清理资源
-        if 'gimbal_controller' in locals():
-            # 取消激光定时器
-            if hasattr(gimbal_controller, 'laser_timer') and gimbal_controller.laser_timer:
-                gimbal_controller.laser_timer.cancel()
-            if hasattr(gimbal_controller, 'laser_safety_timer'):
-                gimbal_controller.laser_safety_timer.cancel()
-            
-            gimbal_controller.destroy_node()
-            # 确保激光关闭
-            wiringpi.digitalWrite(gimbal_controller.laser_pin, GPIO.LOW)
-            print("激光已安全关闭")
+        # 安全清理资源
+        if gimbal_controller is not None:
+            try:
+                # 紧急关闭激光（安全第一）
+                if hasattr(gimbal_controller, 'laser_opened') and gimbal_controller.laser_opened:
+                    gimbal_controller.emergency_laser_shutdown("程序退出")
+                
+                # 取消所有定时器
+                if hasattr(gimbal_controller, 'laser_timer') and gimbal_controller.laser_timer:
+                    gimbal_controller.laser_timer.cancel()
+                    gimbal_controller.laser_timer = None
+                
+                if hasattr(gimbal_controller, 'laser_safety_timer'):
+                    gimbal_controller.laser_safety_timer.cancel()
+                
+                if hasattr(gimbal_controller, 'gimbal_timer'):
+                    gimbal_controller.gimbal_timer.cancel()
+                
+                # 销毁节点
+                gimbal_controller.destroy_node()
+                
+                # 最后确保激光GPIO为低电平
+                if hasattr(gimbal_controller, 'laser_pin'):
+                    wiringpi.digitalWrite(gimbal_controller.laser_pin, GPIO.LOW)
+                
+                print("激光已安全关闭，所有资源已清理")
+                
+            except Exception as cleanup_error:
+                print(f"清理资源时出错: {str(cleanup_error)}")
+                # 即使出错也要确保激光关闭
+                try:
+                    wiringpi.digitalWrite(9, GPIO.LOW)  # 硬编码GPIO9确保关闭
+                    print("激光已强制关闭")
+                except:
+                    print("警告：无法确认激光状态，请手动检查")
+        
         rclpy.shutdown()
 
 if __name__ == '__main__':

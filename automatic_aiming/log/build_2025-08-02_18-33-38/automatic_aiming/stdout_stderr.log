@@ -1,0 +1,38 @@
+running develop
+running egg_info
+creating automatic_aiming.egg-info
+writing automatic_aiming.egg-info/PKG-INFO
+writing dependency_links to automatic_aiming.egg-info/dependency_links.txt
+writing entry points to automatic_aiming.egg-info/entry_points.txt
+writing requirements to automatic_aiming.egg-info/requires.txt
+writing top-level names to automatic_aiming.egg-info/top_level.txt
+writing manifest file 'automatic_aiming.egg-info/SOURCES.txt'
+reading manifest file 'automatic_aiming.egg-info/SOURCES.txt'
+writing manifest file 'automatic_aiming.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/python3.10/site-packages/automatic-aiming.egg-link (link to .)
+Installing camera_publisher script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing circle_calc_perspective script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing ekf_filter_node script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing gimbal_controller script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing laser_tuner script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing main_controller script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing target_detect script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing test_node script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing uart0_receiver script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing uart0_sender script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing uart1_receiver script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing uart1_sender script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing uart3_receiver script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing uart3_sender script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+Installing warp_data_publisher script to /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/lib/automatic_aiming
+
+Installed /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming
+running symlink_data
+creating /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/ament_index
+creating /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/ament_index/resource_index
+creating /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/ament_index/resource_index/packages
+symbolically linking /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/resource/automatic_aiming -> /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/ament_index/resource_index/packages
+symbolically linking /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/package.xml -> /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/automatic_aiming
+creating /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/automatic_aiming/launch
+symbolically linking /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/build/automatic_aiming/launch/all_nodes.launch.py -> /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/install/automatic_aiming/share/automatic_aiming/launch

@@ -1,0 +1,5 @@
+[19:45:39] [circle_calc_perspective] [INFO] [1754135139.040659170] [circle_point_calculator]: 透视变换圆形采样点计算节点已启动
+[19:45:39] [circle_calc_perspective] [INFO] [1754135139.041238702] [circle_point_calculator]: 采样点数量: 600
+[19:45:39] [circle_calc_perspective] [INFO] [1754135139.041729569] [circle_point_calculator]: 发布频率: 30.0Hz
+[19:45:39] [circle_calc_perspective] [INFO] [1754135139.042179894] [circle_point_calculator]: 订阅话题: /warp_data
+[19:45:39] [circle_calc_perspective] [INFO] [1754135139.042592304] [circle_point_calculator]: 发布话题: /draw_circle_date

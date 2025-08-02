@@ -7,7 +7,6 @@ from std_msgs.msg import String
 import numpy as np
 import threading
 import time
-import cv2
 
 class CircleMappingCache:
     def __init__(self, max_size=50, tol=1e-4):
@@ -51,7 +50,7 @@ def cached_circle_mapping(cx_trans, cy_trans, r_trans, H, cache=None, num_points
     return mapped_points, cache
 
 class CirclePointCalculatorPerspective(Node):
-    def __init__(self, enable_debug_draw=True):
+    def __init__(self):
         super().__init__('circle_point_calculator')
         
         self.subscription = self.create_subscription(
@@ -73,14 +72,6 @@ class CirclePointCalculatorPerspective(Node):
         self.current_matrix = None      # 当前透视变换矩阵
         self.current_circle = None      # 当前圆参数
         self.circle_points = None       # 当前圆的采样点
-        
-        # Debug绘制优化
-        self.enable_debug_draw = enable_debug_draw
-        self.debug_image_size = (640, 480)
-        self.debug_image = np.zeros((self.debug_image_size[1], self.debug_image_size[0], 3), dtype=np.uint8)
-        self.window_name = "Circle Points Debug"
-        if self.enable_debug_draw:
-            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
 
         # 创建30Hz定时器，用于按频率发布点
         self.publish_timer = self.create_timer(1.0/self.publish_rate, self.publish_next_point)
@@ -127,10 +118,6 @@ class CirclePointCalculatorPerspective(Node):
                 self.current_circle = circle
                 # 重新计算圆上的采样点（不重置发布序号）
                 self.circle_points = self.generate_circle_points(circle, self.num_points)
-                
-                # 清空调试图像
-                if self.enable_debug_draw:
-                    self.debug_image[:] = 0
                 
                 # 标记数据已更新
                 self.data_updated = True
@@ -197,45 +184,11 @@ class CirclePointCalculatorPerspective(Node):
             self.publisher.publish(point_msg)
             # 更新全局计数器
             self.global_point_index = (self.global_point_index + 1) % self.num_points
-            
-            # 在调试图像上绘制点
-            if self.enable_debug_draw:
-                # 清除旧的轨迹（可选，取决于是否需要显示整个轨迹）
-                if self.global_point_index % self.num_points == 0:
-                    self.debug_image[:] = 0
-                
-                # 确保坐标在图像范围内
-                px, py = int(mapped_xy[0]), int(mapped_xy[1])
-                if 0 <= px < self.debug_image_size[0] and 0 <= py < self.debug_image_size[1]:
-                    # 绘制当前点（绿色）
-                    cv2.circle(self.debug_image, (px, py), 3, (0, 255, 0), -1)
-                    
-                # 显示进度信息
-                progress_text = f"点序号: {idx}/{self.num_points-1} ({idx/self.num_points*100:.1f}%)"
-                cv2.putText(self.debug_image, progress_text, (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                
-                if self.current_circle:
-                    circle_info = f"圆心: ({self.current_circle[0]:.1f}, {self.current_circle[1]:.1f}), 半径: {self.current_circle[2]:.1f}"
-                    cv2.putText(self.debug_image, circle_info, (10, 60),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-                
-                # 显示发布状态和频率，标明是否为保持状态
-                status_text = "状态: [keep]持续发布中" if not self.data_updated else "状态: 持续发布中"
-                cv2.putText(self.debug_image, status_text, (10, 90),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                
-                # 显示调试图像
-                cv2.imshow(self.window_name, self.debug_image)
-                cv2.waitKey(1)
 
 def main(args=None):
     rclpy.init(args=args)
     
-    import sys
-    enable_debug = '--debug' in sys.argv or len(sys.argv) == 1
-    
-    node = CirclePointCalculatorPerspective(enable_debug_draw=enable_debug)
+    node = CirclePointCalculatorPerspective()
     
     try:
         print("节点启动中... 按 Ctrl+C 退出")
@@ -245,13 +198,9 @@ def main(args=None):
     except Exception as e:
         print(f"节点运行错误: {e}")
     finally:
-        if enable_debug:
-            cv2.destroyAllWindows()
         node.destroy_node()
         rclpy.shutdown()
         print("节点已安全关闭")
 
-if __name__ == '__main__':
-    main()
 if __name__ == '__main__':
     main()

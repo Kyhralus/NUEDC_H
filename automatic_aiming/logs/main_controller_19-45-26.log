@@ -1,0 +1,22 @@
+[19:45:28] [main_controller] [INFO] [1754135128.052884410] [main_controller]: 主控节点初始化完成
+[19:45:31] [main_controller] [INFO] [1754135131.318868498] [main_controller]: 收到指令: r00
+[19:45:31] [main_controller] [INFO] [1754135131.319457364] [main_controller]: 收到r00指令，关闭目标检测数据发布
+[19:45:31] [main_controller] [INFO] [1754135131.320369390] [main_controller]: 已发布任务状态: stopped
+[19:45:31] [main_controller] [INFO] [1754135131.389990219] [main_controller]: 目标检测服务停止成功: 目标数据发布已停止
+[19:45:31] [main_controller] [INFO] [1754135131.891324999] [main_controller]: 收到指令: r40
+[19:45:31] [main_controller] [INFO] [1754135131.892011570] [main_controller]: 已发布任务状态: task4
+[19:45:31] [main_controller] [INFO] [1754135131.940929081] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[19:45:33] [main_controller] [INFO] [1754135133.907260771] [main_controller]: 收到指令: r00
+[19:45:33] [main_controller] [INFO] [1754135133.907827178] [main_controller]: 收到r00指令，关闭目标检测数据发布
+[19:45:33] [main_controller] [INFO] [1754135133.909739896] [main_controller]: 已发布任务状态: stopped
+[19:45:34] [main_controller] [INFO] [1754135133.990210834] [main_controller]: 目标检测服务停止成功: 目标数据发布已停止
+[19:45:36] [main_controller] [INFO] [1754135136.208518162] [main_controller]: 收到指令: r00
+[19:45:36] [main_controller] [INFO] [1754135136.209133860] [main_controller]: 收到r00指令，关闭目标检测数据发布
+[19:45:36] [main_controller] [INFO] [1754135136.244274728] [main_controller]: 目标检测服务停止成功: 目标数据发布已停止
+[19:45:36] [main_controller] [INFO] [1754135136.658870174] [main_controller]: 收到指令: r40
+[19:45:36] [main_controller] [INFO] [1754135136.660488897] [main_controller]: 已发布任务状态: task4
+[19:45:36] [main_controller] [INFO] [1754135136.696385751] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[19:45:38] [main_controller] [INFO] [1754135138.896251306] [main_controller]: 收到指令: r00
+[19:45:38] [main_controller] [INFO] [1754135138.896781839] [main_controller]: 收到r00指令，关闭目标检测数据发布
+[19:45:38] [main_controller] [INFO] [1754135138.901904295] [main_controller]: 已发布任务状态: stopped
+[19:45:39] [main_controller] [INFO] [1754135139.001472079] [main_controller]: 目标检测服务停止成功: 目标数据发布已停止
