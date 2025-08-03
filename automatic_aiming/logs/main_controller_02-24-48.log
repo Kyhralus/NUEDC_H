@@ -1,0 +1,28 @@
+[02:24:50] [main_controller] [INFO] [1754245490.184980613] [main_controller]: 主控节点初始化完成
+[02:25:10] [main_controller] [INFO] [1754245510.324226816] [main_controller]: 收到指令: r40
+[02:25:10] [main_controller] [INFO] [1754245510.324917472] [main_controller]: 已发布任务状态: task4
+[02:25:10] [main_controller] [INFO] [1754245510.332660807] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:25:20] [main_controller] [INFO] [1754245520.219121793] [main_controller]: 收到指令: r40
+[02:25:20] [main_controller] [INFO] [1754245520.228691807] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:25:47] [main_controller] [INFO] [1754245547.352948510] [main_controller]: 收到指令: r40
+[02:25:47] [main_controller] [INFO] [1754245547.369505287] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:26:32] [main_controller] [INFO] [1754245592.961902553] [main_controller]: 收到指令: r40
+[02:26:32] [main_controller] [INFO] [1754245592.966507021] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:26:44] [main_controller] [INFO] [1754245604.717038876] [main_controller]: 收到指令: r40
+[02:26:44] [main_controller] [INFO] [1754245604.720427113] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:26:49] [main_controller] [INFO] [1754245609.108231335] [main_controller]: 收到指令: r40
+[02:26:49] [main_controller] [INFO] [1754245609.116113209] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:26:52] [main_controller] [INFO] [1754245612.304775880] [main_controller]: 收到指令: r40
+[02:26:52] [main_controller] [INFO] [1754245612.317845255] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:27:06] [main_controller] [INFO] [1754245626.658894178] [main_controller]: 收到指令: r40
+[02:27:06] [main_controller] [INFO] [1754245626.667054888] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:27:32] [main_controller] [INFO] [1754245652.254827602] [main_controller]: 收到指令: r41
+[02:27:32] [main_controller] [INFO] [1754245652.256963445] [main_controller]: 扩展任务一，激光开启
+[02:27:32] [main_controller] [INFO] [1754245652.272577000] [main_controller]: 激光模式切换成功: continuous - 激光模式已简化为瞄准即开启
+[02:27:45] [main_controller] [INFO] [1754245665.331534734] [main_controller]: 收到指令: r50
+[02:27:45] [main_controller] [INFO] [1754245665.333992864] [main_controller]: 已发布任务状态: task5
+[02:27:45] [main_controller] [INFO] [1754245665.351578639] [main_controller]: 目标检测服务启动成功: 目标数据发布已启动
+[02:27:55] [main_controller] [INFO] [1754245675.246061639] [main_controller]: 收到指令: r00
+[02:27:55] [main_controller] [INFO] [1754245675.248109982] [main_controller]: 收到r00指令，关闭目标检测数据发布
+[02:27:55] [main_controller] [INFO] [1754245675.251570555] [main_controller]: 已发布任务状态: stopped
+[02:27:55] [main_controller] [INFO] [1754245675.255461329] [main_controller]: 目标检测服务停止成功: 目标数据发布已停止

@@ -1,4 +1,0 @@
-[19:45:37] [uart3_sender] [INFO] [1754135137.295361597] [uart3_sender]: 创建uart3_sender_topic订阅方成功！
-[19:45:37] [uart3_sender] [INFO] [1754135137.295928005] [uart3_sender]: uart3_sender @ /dev/ttyS3 Buad: 115200 init success
-[19:45:38] [uart3_sender] [INFO] [1754135138.898326771] [uart3_sender]: request to send: stopped
-[19:45:38] [uart3_sender] [INFO] [1754135138.901651715] [uart3_sender]: request to send: stopped

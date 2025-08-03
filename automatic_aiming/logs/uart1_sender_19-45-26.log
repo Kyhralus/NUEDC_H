@@ -1,3 +1,0 @@
-[19:45:34] [uart1_sender] [INFO] [1754135134.264289185] [uart1_sender]: 创建uart1_sender_topic订阅方成功！
-[19:45:34] [uart1_sender] [INFO] [1754135134.264865800] [uart1_sender]: uart1_sender @ /dev/ttyS1 Buad: 115200 init success
-[19:45:36] [uart1_sender] [INFO] [1754135136.739754397] [uart1_sender]: request to send: @0,18,55
