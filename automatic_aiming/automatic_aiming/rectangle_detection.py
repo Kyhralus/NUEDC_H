@@ -5,8 +5,9 @@ import cv2
 import numpy as np
 import time
 from .geometry_utils import calculate_angle
+from .tcp_sender import ImageSender
 
-def detect_nested_rectangles_optimized(edged_image, timing_stats):
+def detect_nested_rectangles_optimized(edged_image, timing_stats, morph_sender=None, contour_sender=None, filter_sender=None, nested_sender=None):
     """优化的嵌套矩形检测 - 增加稳定性并显示每步处理结果"""
     rect_start = time.time()
     
@@ -15,8 +16,23 @@ def detect_nested_rectangles_optimized(edged_image, timing_stats):
     edged_stable = cv2.morphologyEx(edged_image, cv2.MORPH_CLOSE, kernel)
     edged_stable = cv2.dilate(edged_stable, kernel, iterations=1)
     
+    # 发送形态学操作结果
+    if morph_sender:
+        morph_result = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
+        cv2.putText(morph_result, "Step 1: Morphological Operations", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        morph_sender.send_image(morph_result)
+    
     # 2. 轮廓检测
     contours, hierarchy = cv2.findContours(edged_stable, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # 发送轮廓检测结果
+    if contour_sender:
+        contour_result = cv2.cvtColor(edged_stable, cv2.COLOR_GRAY2BGR)
+        cv2.drawContours(contour_result, contours, -1, (0, 255, 255), 1)
+        cv2.putText(contour_result, f"Step 2: Contour Detection ({len(contours)} contours)", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        contour_sender.send_image(contour_result)
     
     # 3. 筛选矩形
     rectangles = []
@@ -87,6 +103,12 @@ def detect_nested_rectangles_optimized(edged_image, timing_stats):
         # 用蓝色绘制通过筛选的矩形
         cv2.drawContours(filter_img, [approx], -1, (255, 0, 0), 2)
 
+    # 发送矩形筛选结果
+    if filter_sender:
+        cv2.putText(filter_img, f"Step 3: Rectangle Filtering ({len(rectangles)} valid rectangles)", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        filter_sender.send_image(filter_img)
+
     # 4. 按面积排序
     rectangles.sort(key=lambda r: r['area'], reverse=True)
 
@@ -122,6 +144,18 @@ def detect_nested_rectangles_optimized(edged_image, timing_stats):
                     break
         if outer_rect is not None:
             break
+    
+    # 发送嵌套检测结果
+    cv2.putText(nested_img, f"Step 4: Nested Rectangle Detection", (10, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+    if outer_rect and inner_rect:
+        cv2.putText(nested_img, f"Found nested pair: Outer area={outer_rect['area']:.0f}, Inner area={inner_rect['area']:.0f}", 
+                    (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    else:
+        cv2.putText(nested_img, "No nested rectangles found", (10, 60), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+    if nested_sender:
+        nested_sender.send_image(nested_img)
     
     # 计算耗时
     rect_time = (time.time() - rect_start) * 1000

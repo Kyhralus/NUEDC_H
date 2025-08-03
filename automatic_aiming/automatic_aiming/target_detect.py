@@ -76,9 +76,21 @@ class TargetDetectionService(Node):
         # 数据发布控制标志
         self.publish_target_data = False
 
-        # tcp发送图片
+        # tcp发送图片 - 主要检测结果
         self.image_sender = ImageSender('192.168.31.89', 5000)
         self.image_sender.connect()
+        
+        # 矩形检测过程的图像发送器
+        self.morph_sender = ImageSender('192.168.31.89', 5001)  # 形态学操作结果
+        self.contour_sender = ImageSender('192.168.31.89', 5002)  # 轮廓检测结果
+        self.filter_sender = ImageSender('192.168.31.89', 5003)  # 矩形筛选结果
+        self.nested_sender = ImageSender('192.168.31.89', 5004)  # 嵌套检测结果
+        
+        # 连接所有矩形检测发送器
+        self.morph_sender.connect()
+        self.contour_sender.connect()
+        self.filter_sender.connect()
+        self.nested_sender.connect()
         
         # 创建发布器
         self.target_publisher = self.create_publisher(
@@ -424,7 +436,14 @@ class TargetDetectionService(Node):
             processed_data = preprocess_image(cv_image, self.timing_stats)
             
             # 2. 矩形检测
-            outer_rect, inner_rect = detect_nested_rectangles_optimized(processed_data['edged'], self.timing_stats)
+            outer_rect, inner_rect = detect_nested_rectangles_optimized(
+                processed_data['edged'], 
+                self.timing_stats,
+                self.morph_sender,
+                self.contour_sender, 
+                self.filter_sender,
+                self.nested_sender
+            )
             
             # 3. 根据透视变换和先验知识获取靶心位置和目标圆
             target_center, target_circle, perspective_vis = self.get_target_from_perspective(
@@ -472,7 +491,7 @@ class TargetDetectionService(Node):
             elif self.target_circle_area >= 20000: # 向下偏移15
                 target_message = f"p,{target_center[0]},{target_center[1]-10}"
             else:
-                target_message = f"p,{target_center[0]},{target_center[1]-10}-"
+                target_message = f"p,{target_center[0]},{target_center[1]-10}"
             msg_pub = String()
             msg_pub.data = target_message
             self.target_publisher.publish(msg_pub)
@@ -513,8 +532,19 @@ class TargetDetectionService(Node):
     def __del__(self):
         """析构函数，释放资源"""
         self.stop_detection()
+        
+        # 断开所有图像发送器连接
         if hasattr(self, 'image_sender'):
             self.image_sender.disconnect()
+        if hasattr(self, 'morph_sender'):
+            self.morph_sender.disconnect()
+        if hasattr(self, 'contour_sender'):
+            self.contour_sender.disconnect()
+        if hasattr(self, 'filter_sender'):
+            self.filter_sender.disconnect()
+        if hasattr(self, 'nested_sender'):
+            self.nested_sender.disconnect()
+            
         cv2.destroyAllWindows()
 
 def main(args=None):

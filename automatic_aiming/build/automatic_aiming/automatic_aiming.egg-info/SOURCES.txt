@@ -6,7 +6,6 @@ automatic_aiming/circle_calc_perspective.py
 automatic_aiming/ekf_filter_node.py
 automatic_aiming/geometry_utils.py
 automatic_aiming/get_image.py
-automatic_aiming/gimbal_controller.py
 automatic_aiming/image_processing_utils.py
 automatic_aiming/main_controller.py
 automatic_aiming/rectangle_detection.py
@@ -25,5 +24,9 @@ automatic_aiming.egg-info/entry_points.txt
 automatic_aiming.egg-info/requires.txt
 automatic_aiming.egg-info/top_level.txt
 automatic_aiming.egg-info/zip-safe
+automatic_aiming/utils/__init__.py
+automatic_aiming/utils/communication_manager.py
+automatic_aiming/utils/gimbal_control.py
+automatic_aiming/utils/task_manager.py
 launch/all_nodes.launch.py
 resource/automatic_aiming

@@ -1,166 +1,214 @@
 #!/bin/bash
-# 确保脚本具有可执行权限：chmod +x /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/script/run.sh
 
-# 获取脚本所在目录（script目录）
+# 自动瞄准系统启动脚本 - 简化版
+# 功能：启动ROS2节点，提供彩色输出和日志记录
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+# 获取脚本目录和工作空间
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 工作空间目录：脚本目录的上一级（即automatic_aiming功能包目录）
-WORKSPACE_DIR="$(dirname "${SCRIPT_DIR}")"
-LOGS_DIR="${WORKSPACE_DIR}/logs"  # 日志目录放在工作空间下
+WORKSPACE_ROOT="$(dirname "${SCRIPT_DIR}")"
+LOGS_DIR="${WORKSPACE_ROOT}/logs"
 
-# 创建日志目录
-mkdir -p "${LOGS_DIR}"
+# 清理旧日志并创建日志目录
+log_cleanup() {
+    if [ -d "${LOGS_DIR}" ]; then
+        echo -e "${YELLOW}[CLEANUP]${NC} 清理旧日志文件..."
+        rm -rf "${LOGS_DIR}"/*
+        echo -e "${GREEN}[SUCCESS]${NC} 旧日志已清理"
+    fi
+    mkdir -p "${LOGS_DIR}"
+}
 
-# 清理旧日志文件
-echo "清理旧日志文件..."
-rm -f "${LOGS_DIR}"/*.log
+# 执行日志清理
+log_cleanup
 
-# 获取当前时间戳
-TIMESTAMP=$(date '+%H-%M-%S')
-MAIN_LOG="${LOGS_DIR}/main_${TIMESTAMP}.log"
+# 日志文件设置
+TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+MAIN_LOG="${LOGS_DIR}/run_${TIMESTAMP}.log"
 
-# 全局进程数组
+# 进程数组
 declare -a ALL_PIDS=()
 
 # 日志函数
 log_info() {
-    local msg="[$(date '+%H:%M:%S')] [INFO] $1"
-    echo "$msg" | tee -a "${MAIN_LOG}"
+    local message="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo -e "${GREEN}[INFO]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
+}
+
+log_warn() {
+    local message="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo -e "${YELLOW}[WARN]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
 }
 
 log_error() {
-    local msg="[$(date '+%H:%M:%S')] [ERROR] $1"
-    echo "$msg" | tee -a "${MAIN_LOG}"
+    local message="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo -e "${RED}[ERROR]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
+}
+
+log_success() {
+    local message="$1"
+    local timestamp=$(date '+%H:%M:%S')
+    echo -e "${GREEN}[SUCCESS]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
 }
 
 # 清理函数
 cleanup() {
     echo
-    log_info "收到退出信号，正在关闭所有节点..."
+    log_info "正在关闭所有节点..."
     
-    # 杀死所有子进程
     for pid in "${ALL_PIDS[@]}"; do
         if kill -0 "$pid" 2>/dev/null; then
-            log_info "正在关闭 PID: $pid"
+            log_info "关闭进程 PID: $pid"
             kill -TERM "$pid" 2>/dev/null || true
         fi
     done
     
-    # 等待进程结束
     sleep 2
     
-    # 强制杀死剩余进程
+    # 强制关闭剩余进程
     for pid in "${ALL_PIDS[@]}"; do
         if kill -0 "$pid" 2>/dev/null; then
-            log_info "强制关闭 PID: $pid"
             kill -KILL "$pid" 2>/dev/null || true
         fi
     done
     
-    log_info "所有节点已关闭"
+    log_success "所有节点已关闭"
 }
 
 # 设置信号处理
 trap cleanup SIGINT SIGTERM EXIT
 
-log_info "=== 自动瞄准系统启动脚本 ==="
-log_info "工作空间: ${WORKSPACE_DIR}"  # 此处将显示上一级目录路径
-log_info "日志目录: ${LOGS_DIR}"
+# 打印标题
+echo -e "${PURPLE}================================${NC}"
+echo -e "${PURPLE}    自动瞄准系统启动脚本${NC}"
+echo -e "${PURPLE}================================${NC}"
+echo ""
 
-# 切换到工作空间目录（功能包目录）
-cd "${WORKSPACE_DIR}" || {
-    log_error "无法切换到工作空间目录: ${WORKSPACE_DIR}"
+# 切换到工作空间
+cd "${WORKSPACE_ROOT}" || {
+    log_error "无法切换到工作空间: ${WORKSPACE_ROOT}"
     exit 1
 }
 
-# 检查ROS2环境（强化环境加载，解决服务启动问题）
+# 检查ROS2环境
 log_info "检查ROS2环境..."
-# 手动加载环境变量（关键：服务模式下需显式加载）
-source /etc/profile 2>/dev/null || true
-source ~/.bashrc 2>/dev/null || true
 source /opt/ros/humble/setup.bash 2>/dev/null || true
 
 if ! command -v ros2 &> /dev/null; then
-    log_error "ROS2未安装或未正确配置环境变量"
-    log_error "当前环境变量PATH: $PATH"  # 调试用：输出PATH查看是否包含ROS2路径
+    log_error "ROS2未安装或环境未配置"
     exit 1
 fi
+log_success "ROS2环境检查通过"
 
-# 加载工作空间环境（功能包的install目录）
-log_info "加载工作空间环境..."
-source "${WORKSPACE_DIR}/install/setup.bash" 2>/dev/null || {
-    log_error "工作空间install目录不存在，尝试构建功能包..."
-    # 构建当前功能包（automatic_aiming）
-    colcon build --packages-select automatic_aiming
-    source "${WORKSPACE_DIR}/install/setup.bash" 2>/dev/null || {
-        log_error "构建后仍无法加载工作空间，请检查CMakeLists.txt"
-        exit 1
-    }
-}
+# 构建项目
+# log_info "构建项目..."
+# if colcon build --packages-select automatic_aiming --symlink-install 2>&1 | tee -a "$MAIN_LOG"; then
+#     log_success "项目构建成功"
+# else
+#     log_error "项目构建失败"
+#     exit 1
+# fi
 
-# 定义所有节点
+# 加载工作空间环境
+source install/setup.bash
+log_success "工作空间环境加载完成"
+
+# GPIO初始化配置
+log_info "配置GPIO引脚..."
+if command -v gpio &> /dev/null; then
+    # 配置 GPIO54 为输入模式（对应 wiringPi 编号 2）
+    if gpio mode 2 in 2>/dev/null; then
+        log_success "GPIO54 (wiringPi 2) 配置为输入模式"
+    else
+        log_warn "GPIO54 (wiringPi 2) 配置失败，可能需要sudo权限"
+    fi
+    
+    # 配置 GPIO59 为输出模式（对应 wiringPi 编号 9）
+    if gpio mode 9 out 2>/dev/null; then
+        log_success "GPIO59 (wiringPi 9) 配置为输出模式"
+    else
+        log_warn "GPIO59 (wiringPi 9) 配置失败，可能需要sudo权限"
+    fi
+else
+    log_warn "gpio命令未找到，跳过GPIO配置"
+    log_info "请确保安装了wiringPi库或手动配置GPIO"
+fi
+
+# 定义要启动的节点
 NODES=(
-    "main_controller" 
+    "main_controller"
     "target_detect"
-    "gimbal_controller"
+    # "gimbal_controller"  # 已删除
     "uart1_receiver"
     "uart1_sender"
     "uart3_sender"
     "circle_calc_perspective"
 )
 
-# 启动所有节点
-log_info "开始启动所有节点..."
+# 节点颜色映射
+get_node_color() {
+    case "$1" in
+        "main_controller") echo "${YELLOW}" ;;
+        "target_detect") echo "${RED}" ;;
+        # "gimbal_controller") echo "${PURPLE}" ;;   # 已删除
+        "circle_calc_perspective") echo "${GREEN}" ;;
+        "uart1_receiver") echo "${BLUE}" ;;
+        "uart1_sender") echo "${BLUE}" ;;
+        "uart3_sender") echo "${CYAN}" ;;
+        *) echo "${NC}" ;;
+    esac
+}
 
+# 启动节点函数 - 高速精准模式
+start_node() {
+    local node_name="$1"
+    local node_color=$(get_node_color "$node_name")
+    local node_log="${LOGS_DIR}/${node_name}_${TIMESTAMP}.log"
+    
+    # 高速启动，减少日志输出
+    {
+        ros2 run automatic_aiming "$node_name" --ros-args --log-level WARN
+    } > "$node_log" 2>&1 &
+    
+    local pid=$!
+    ALL_PIDS+=($pid)
+    echo -e "${node_color}[FAST]${NC} ${node_name} 已启动 (PID: $pid)"
+    
+    # 移除延迟，提高启动速度
+}
+
+# 高速启动所有节点
+log_info "高速启动模式 - 启动所有节点..."
 for node in "${NODES[@]}"; do
-    log_info "启动节点: ${node}"
-    NODE_LOG="${LOGS_DIR}/${node}_${TIMESTAMP}.log"
-    
-    # 创建带颜色标识的日志输出函数
-    start_node_with_logging() {
-        local node_name="$1"
-        local log_file="$2"
-        
-        # 修正颜色代码（原橙色30m为黑色，改为正确的橙色代码）
-        case "$node_name" in
-            "main_controller") color="\033[33m" ;;       # 黄色
-            "target_detect") color="\033[31m" ;;         # 红色
-            "gimbal_controller") color="\033[38;5;208m" ;;  # 橙色
-            "circle_calc_perspective") color="\033[32m" ;;  # 绿色
-            "uart1_receiver") color="\033[34m" ;;        # 蓝色
-            "uart1_sender") color="\033[34m" ;;          # 蓝色
-           
-            "uart3_sender") color="\033[36m" ;;          # 青色
-
-            *) color="\033[0m" ;;                        # 默认色
-        esac
-        
-        # 启动节点并处理输出（显式指定ROS环境）
-        ROS_DOMAIN_ID=0 ros2 run automatic_aiming "$node_name" 2>&1 | while IFS= read -r line; do
-            timestamp=$(date '+%H:%M:%S')
-            formatted_line="[$timestamp] [$node_name] $line"
-            
-            # 同时输出到终端（带颜色）和日志文件（无颜色）
-            echo -e "${color}${formatted_line}\033[0m"
-            echo "$formatted_line" >> "$log_file"
-            echo "$formatted_line" >> "${MAIN_LOG}"
-        done
-    }
-    
-    # 后台启动节点
-    start_node_with_logging "$node" "$NODE_LOG" &
-    NODE_PID=$!
-    ALL_PIDS+=($NODE_PID)
-    
-    log_info "节点 ${node} 已启动，PID: ${NODE_PID}，日志文件: ${NODE_LOG}"
-    sleep 1.5
+    start_node "$node"
 done
 
-log_info "所有节点启动完成"
-echo "=========================================="
-echo "系统运行中... 按 Ctrl+C 停止所有节点"
-echo "=========================================="
+# 快速验证节点启动状态
+sleep 0.5
+log_success "所有节点启动完成，共 ${#ALL_PIDS[@]} 个进程"
 
-# 监控节点状态
+echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  高速精准自动瞄准系统运行中...${NC}"
+echo -e "${GREEN}    按 Ctrl+C 停止所有节点${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+log_info "日志位置: ${LOGS_DIR} (旧日志已清理)"
+echo ""
+
+# 高效监控节点状态
 while true; do
     active_count=0
     for pid in "${ALL_PIDS[@]}"; do
@@ -169,15 +217,16 @@ while true; do
         fi
     done
     
-    echo -ne "\r[$(date '+%H:%M:%S')] 活动节点数: $active_count/${#NODES[@]}"
+    # 减少监控频率，降低系统开销
+    echo -ne "\r${CYAN}[$(date '+%H:%M:%S')] 运行中: $active_count/${#ALL_PIDS[@]} 节点${NC}  "
     
     if [ $active_count -eq 0 ]; then
         echo
-        log_error "所有节点已意外退出"
+        log_error "所有节点已退出"
         break
     fi
     
-    sleep 2
+    sleep 5  # 从2秒增加到5秒，减少系统开销
 done
 
 cleanup
