@@ -33,14 +33,13 @@ class GimbalControl:
         self.laser_success_required_count = 3 # 激光开启所需的连续成功次数
         self.laser_counter = 0             # 激光计数器
         
-        # 激光模式和状态管理
-        self.laser_mode = "continuous"      # 激光模式
+        # 激光状态管理
         self.shotted = 0                   # 瞄准状态: 0=未瞄准, 1=已瞄准靶子
-        
+
         # 初始化GPIO
         try:
-            self.key_in = GPIO("/dev/gpiochip1", 22, "in")       # 外部开关
-            self.laser_out = GPIO("/dev/gpiochip1", 27, "out")   # 激光输出
+            self.key_in = GPIO(54, "in")       # 外部开关
+            self.laser_out = GPIO(59, "out")   # 激光输出
             self.laser_out.write(False)  # 初始化激光为关闭状态
             self.gpio_initialized = True
             self.logger.info("GPIO初始化成功")
