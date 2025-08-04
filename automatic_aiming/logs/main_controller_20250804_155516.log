@@ -1,0 +1,6 @@
+[INFO] [1754294118.130829225] [main_controller]: GPIO初始化成功
+[INFO] [1754294118.131330301] [main_controller]: 云台控制模块初始化完成
+[INFO] [1754294118.131763127] [main_controller]: 图像中心: (480, 360)
+[INFO] [1754294118.136284180] [main_controller]: 通信管理器初始化完成 - 非阻塞模式
+[INFO] [1754294118.137390454] [main_controller]: 集成主控制器节点初始化完成
+[INFO] [1754294118.137832905] [main_controller]: 已合并原 main_controller 和 gimbal_controller 功能

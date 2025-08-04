@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 自动瞄准系统启动脚本 - 简化版
+# 自动瞄准系统启动脚本 - 稳定版
 # 功能：启动ROS2节点，提供彩色输出和日志记录
 
 # 颜色定义
@@ -37,58 +37,91 @@ MAIN_LOG="${LOGS_DIR}/run_${TIMESTAMP}.log"
 
 # 进程数组
 declare -a ALL_PIDS=()
+declare -a NODE_NAMES=()
 
-# 日志函数
+# 全局标志变量
+SHUTDOWN_REQUESTED=false
+
+# 日志函数 - 修复ANSI代码写入文件问题
 log_info() {
     local message="$1"
     local timestamp=$(date '+%H:%M:%S')
-    echo -e "${GREEN}[INFO]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
+    echo -e "${GREEN}[INFO]${NC} ${WHITE}[$timestamp]${NC} $message"
+    echo "[INFO] [$timestamp] $message" >> "$MAIN_LOG"
 }
 
 log_warn() {
     local message="$1"
     local timestamp=$(date '+%H:%M:%S')
-    echo -e "${YELLOW}[WARN]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
+    echo -e "${YELLOW}[WARN]${NC} ${WHITE}[$timestamp]${NC} $message"
+    echo "[WARN] [$timestamp] $message" >> "$MAIN_LOG"
 }
 
 log_error() {
     local message="$1"
     local timestamp=$(date '+%H:%M:%S')
-    echo -e "${RED}[ERROR]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
+    echo -e "${RED}[ERROR]${NC} ${WHITE}[$timestamp]${NC} $message"
+    echo "[ERROR] [$timestamp] $message" >> "$MAIN_LOG"
 }
 
 log_success() {
     local message="$1"
     local timestamp=$(date '+%H:%M:%S')
-    echo -e "${GREEN}[SUCCESS]${NC} ${WHITE}[$timestamp]${NC} $message" | tee -a "$MAIN_LOG"
+    echo -e "${GREEN}[SUCCESS]${NC} ${WHITE}[$timestamp]${NC} $message"
+    echo "[SUCCESS] [$timestamp] $message" >> "$MAIN_LOG"
 }
 
 # 清理函数
 cleanup() {
-    echo
-    log_info "正在关闭所有节点..."
+    if [ "$SHUTDOWN_REQUESTED" = true ]; then
+        return
+    fi
     
-    for pid in "${ALL_PIDS[@]}"; do
+    SHUTDOWN_REQUESTED=true
+    echo
+    echo -e "${YELLOW}[SHUTDOWN]${NC} 收到退出信号 (Ctrl+C)，正在优雅关闭所有节点..."
+    
+    # 首先发送TERM信号进行优雅关闭
+    for i in "${!ALL_PIDS[@]}"; do
+        pid=${ALL_PIDS[$i]}
+        node_name=${NODE_NAMES[$i]}
         if kill -0 "$pid" 2>/dev/null; then
-            log_info "关闭进程 PID: $pid"
+            echo -e "${CYAN}[SHUTDOWN]${NC} 正在关闭节点: $node_name (PID: $pid)"
             kill -TERM "$pid" 2>/dev/null || true
         fi
     done
     
-    sleep 2
+    # 等待节点优雅关闭
+    echo -e "${YELLOW}[SHUTDOWN]${NC} 等待节点优雅关闭 (3秒)..."
+    for i in {1..3}; do
+        echo -n "."
+        sleep 1
+    done
+    echo
     
-    # 强制关闭剩余进程
-    for pid in "${ALL_PIDS[@]}"; do
+    # 检查并强制关闭仍在运行的进程
+    force_killed=0
+    for i in "${!ALL_PIDS[@]}"; do
+        pid=${ALL_PIDS[$i]}
+        node_name=${NODE_NAMES[$i]}
         if kill -0 "$pid" 2>/dev/null; then
+            echo -e "${RED}[FORCE KILL]${NC} 强制关闭节点: $node_name (PID: $pid)"
             kill -KILL "$pid" 2>/dev/null || true
+            force_killed=1
         fi
     done
     
-    log_success "所有节点已关闭"
+    if [ $force_killed -eq 1 ]; then
+        echo -e "${YELLOW}[WARNING]${NC} 部分节点被强制关闭"
+    fi
+    
+    echo -e "${GREEN}[SUCCESS]${NC} 所有节点已安全关闭"
+    echo -e "${PURPLE}感谢使用自动瞄准系统！${NC}"
+    exit 0
 }
 
-# 设置信号处理
-trap cleanup SIGINT SIGTERM EXIT
+# 设置信号处理 - 捕获Ctrl+C (SIGINT)
+trap 'cleanup' SIGINT SIGTERM
 
 # 打印标题
 echo -e "${PURPLE}================================${NC}"
@@ -171,62 +204,119 @@ get_node_color() {
     esac
 }
 
-# 启动节点函数 - 高速精准模式
+# 检查节点是否成功启动
+check_node_ready() {
+    local node_name="$1"
+    local max_attempts=10
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if ros2 node list 2>/dev/null | grep -q "$node_name"; then
+            return 0
+        fi
+        sleep 0.5
+        ((attempt++))
+    done
+    return 1
+}
+
+# 启动节点函数 - 完整日志记录模式
 start_node() {
     local node_name="$1"
     local node_color=$(get_node_color "$node_name")
     local node_log="${LOGS_DIR}/${node_name}_${TIMESTAMP}.log"
     
-    # 高速启动，减少日志输出
+    log_info "正在启动节点: $node_name"
+    
+    # 启动节点，完整输出到终端和日志文件
     {
-        ros2 run automatic_aiming "$node_name" --ros-args --log-level WARN
-    } > "$node_log" 2>&1 &
+        ros2 run automatic_aiming "$node_name" --ros-args --log-level INFO
+    } 2>&1 | tee "$node_log" | while IFS= read -r line; do
+        # 输出到终端，带节点名称前缀和颜色
+        echo -e "${node_color}[$node_name]${NC} $line"
+    done &
     
     local pid=$!
     ALL_PIDS+=($pid)
-    echo -e "${node_color}[FAST]${NC} ${node_name} 已启动 (PID: $pid)"
+    NODE_NAMES+=("$node_name")
     
-    # 移除延迟，提高启动速度
+    # 简短等待，让节点开始启动
+    sleep 2
+    
+    # 检查进程是否还在运行
+    if kill -0 "$pid" 2>/dev/null; then
+        echo -e "${node_color}[STARTED]${NC} ${node_name} 启动成功 (PID: $pid)"
+    else
+        log_error "${node_name} 节点启动失败"
+        return 1
+    fi
+    
+    # 节点间等待时间，确保稳定启动
+    sleep 2
 }
 
-# 高速启动所有节点
-log_info "高速启动模式 - 启动所有节点..."
+# 稳定启动所有节点
+log_info "稳定启动模式 - 逐个启动节点..."
+failed_nodes=()
+
 for node in "${NODES[@]}"; do
-    start_node "$node"
+    if ! start_node "$node"; then
+        failed_nodes+=("$node")
+    fi
 done
 
-# 快速验证节点启动状态
-sleep 0.5
-log_success "所有节点启动完成，共 ${#ALL_PIDS[@]} 个进程"
-
+# 启动完成提示
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  高速精准自动瞄准系统运行中...${NC}"
-echo -e "${GREEN}    按 Ctrl+C 停止所有节点${NC}"
+echo -e "${GREEN}  稳定自动瞄准系统运行中...${NC}"
+echo -e "${GREEN}    按 Ctrl+C 安全停止所有节点${NC}"
+echo -e "${GREEN}  所有节点输出已同步记录到日志${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 log_info "日志位置: ${LOGS_DIR} (旧日志已清理)"
+log_info "系统已就绪，按 Ctrl+C 可安全退出"
+echo -e "${CYAN}[提示] 节点输出同时显示在终端并记录到对应日志文件${NC}"
+
+# 显示启动结果摘要
+if [ ${#failed_nodes[@]} -gt 0 ]; then
+    echo -e "${RED}[警告] 启动失败的节点: ${failed_nodes[*]}${NC}"
+fi
+echo -e "${CYAN}[状态] 成功启动 $((${#ALL_PIDS[@]} - ${#failed_nodes[@]}))/${#NODES[@]} 个节点${NC}"
 echo ""
 
-# 高效监控节点状态
+# 监控节点状态，不覆盖节点输出
 while true; do
-    active_count=0
-    for pid in "${ALL_PIDS[@]}"; do
-        if kill -0 "$pid" 2>/dev/null; then
-            ((active_count++))
-        fi
-    done
-    
-    # 减少监控频率，降低系统开销
-    echo -ne "\r${CYAN}[$(date '+%H:%M:%S')] 运行中: $active_count/${#ALL_PIDS[@]} 节点${NC}  "
-    
-    if [ $active_count -eq 0 ]; then
-        echo
-        log_error "所有节点已退出"
+    if [ "$SHUTDOWN_REQUESTED" = true ]; then
         break
     fi
     
-    sleep 5  # 从2秒增加到5秒，减少系统开销
+    active_count=0
+    dead_nodes=()
+    
+    for i in "${!ALL_PIDS[@]}"; do
+        pid=${ALL_PIDS[$i]}
+        node_name=${NODE_NAMES[$i]}
+        if kill -0 "$pid" 2>/dev/null; then
+            ((active_count++))
+        else
+            dead_nodes+=("$node_name")
+        fi
+    done
+    
+    # 如果有节点意外退出，报告并继续
+    if [ ${#dead_nodes[@]} -gt 0 ]; then
+        echo -e "\n${RED}[ERROR]${NC} 检测到节点意外退出: ${dead_nodes[*]}"
+    fi
+    
+    if [ $active_count -eq 0 ]; then
+        echo -e "\n${RED}[ERROR]${NC} 所有节点已退出，程序结束"
+        break
+    fi
+    
+    sleep 5
 done
 
-cleanup
+# 如果到达这里说明所有节点都已退出，清理资源
+if [ "$SHUTDOWN_REQUESTED" = false ]; then
+    log_info "程序正常结束"
+fi

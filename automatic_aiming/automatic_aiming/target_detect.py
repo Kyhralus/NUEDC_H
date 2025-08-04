@@ -532,7 +532,7 @@ class TargetDetectionService(Node):
     def __del__(self):
         """析构函数，释放资源"""
         self.stop_detection()
-        
+        self.get_logger().info("UDP connections closed")
         # 断开所有图像发送器连接
         if hasattr(self, 'image_sender'):
             self.image_sender.disconnect()

@@ -1,0 +1,15 @@
+[INFO] [15:55:16] 检查ROS2环境...
+[SUCCESS] [15:55:17] ROS2环境检查通过
+[SUCCESS] [15:55:17] 工作空间环境加载完成
+[INFO] [15:55:17] 配置GPIO引脚...
+[SUCCESS] [15:55:17] GPIO54 (wiringPi 2) 配置为输入模式
+[SUCCESS] [15:55:17] GPIO59 (wiringPi 9) 配置为输出模式
+[INFO] [15:55:17] 稳定启动模式 - 逐个启动节点...
+[INFO] [15:55:17] 正在启动节点: main_controller
+[INFO] [15:55:21] 正在启动节点: target_detect
+[INFO] [15:55:25] 正在启动节点: uart1_receiver
+[INFO] [15:55:29] 正在启动节点: uart1_sender
+[INFO] [15:55:33] 正在启动节点: uart3_sender
+[INFO] [15:55:37] 正在启动节点: circle_calc_perspective
+[INFO] [15:55:41] 日志位置: /home/orangepi/ros2_workspace/NUEDC_H/automatic_aiming/logs (旧日志已清理)
+[INFO] [15:55:41] 系统已就绪，按 Ctrl+C 可安全退出
